@@ -18,7 +18,7 @@
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>config.s</itemPath>
-      <itemPath>setup_DAC.s</itemPath>
+      <itemPath>SPI.s</itemPath>
     </logicalFolder>
   </logicalFolder>
   <sourceRootList>
