@@ -1,6 +1,6 @@
 #include <xc.inc>
 
-global  LCD_Setup, LCD_Write_Message
+global  LCD_Setup, LCD_Write_Message, clear_LCD, line2_shift
 
 psect	udata_acs   ; named variables in access ram
 LCD_cnt_l:	ds 1   ; reserve 1 byte for variable LCD_cnt_l
@@ -16,6 +16,7 @@ psect	lcd_code,class=CODE
     
 LCD_Setup:
 	clrf    LATB, A
+	
 	movlw   11000000B	    ; RB0:5 all outputs
 	movwf	TRISB, A
 	movlw   40
@@ -36,10 +37,11 @@ LCD_Setup:
 	call	LCD_Send_Byte_I
 	movlw	10		; wait 40us
 	call	LCD_delay_x4us
-	movlw	00000001B	; display clear
-	call	LCD_Send_Byte_I
-	movlw	2		; wait 2ms
-	call	LCD_delay_ms
+	;movlw	00000001B	; display clear
+	;call	LCD_Send_Byte_I
+	;movlw	2		; wait 2ms
+	;call	LCD_delay_ms
+	call	clear_LCD
 	movlw	00000110B	; entry mode incr by 1 no shift
 	call	LCD_Send_Byte_I
 	movlw	10		; wait 40us
@@ -132,6 +134,21 @@ lcdlp1:	decf 	LCD_cnt_l, F, A	; no carry when 0x00 -> 0xff
 	bc 	lcdlp1		; carry, then loop again
 	return			; carry reset so return
 
+clear_LCD:			; clear LCD display
+	movlw	00000001B	; set rb0 to 0
+	call	LCD_Send_Byte_I	; send instrucion to LCD
+    	movlw	2		; wait 2 ms (>1.52ms)
+	call	LCD_delay_ms	
+	return
+	
+line2_shift:
+	movlw	0x40
+	addlw	0x80
+	call	LCD_Send_Byte_I
+	movlw	10
+	call	LCD_delay_x4us
+	return
+	
 
     end
 
