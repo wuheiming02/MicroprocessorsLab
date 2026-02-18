@@ -1,31 +1,22 @@
 #include <xc.inc>
 
 extrn	UART_Setup, UART_Transmit_Message  ; external subroutines
-extrn	LCD_Setup, LCD_Write_Message, clear_LCD, line2_shift
+extrn	LCD_Setup, LCD_Write_Message, clear_LCD, line2_shift, LCD_Write_Message_direct
 	
 psect	udata_acs   ; reserve data space in access ram
 counter:    ds 1    ; reserve one byte for a counter variable
 delay_count:ds 1    ; reserve one byte for counter in the delay routine
-counter2:   ds 1
     
 psect	udata_bank4 ; reserve data anywhere in RAM (here at 0x400)
 myArray:    ds 0x80 ; reserve 128 bytes for message data
-myArray2:   ds 0x80
 
 psect	data    
 	; ******* myTable, data in programme memory, and its length *****
 myTable:
 	db	'H','e','l','l','o',' ','W','o','r','l','d','!', 0x0d
-	;db	'H','e','l','l','o',' ','W','o','r','l','d','2',0x0a
+	db	'G','o','o','d',' ','N','i','g','h','t'
 					; message, plus carriage return
-	myTable_l   EQU	13	; length of data
-	align	2
-	
-myTable2:
-	db	'G','o','o','d','b','y','e', 0x0d
-	;db	'H','e','l','l','o',' ','W','o','r','l','d','2',0x0a
-					; message, plus carriage return
-	myTable_2   EQU	8	; length of data
+	myTable_l   EQU	23	; length of data
 	align	2
     
 psect	code, abs	
@@ -39,58 +30,67 @@ setup:
 	call	UART_Setup	; setup UART
 	call	LCD_Setup	; setup UART
 	
+	clrf	LATA, A	; setup port A as button press
+	movlw	0x01	; RA0 is input to be read later
+	movwf	TRISA, A
+	
 	goto	start
 	
 	; ******* Main programme ****************************************
-start: 	lfsr	0, myArray	; Load FSR0 with address in RAM	
+start: 	
 	movlw	low highword(myTable)	; address of data in PM
 	movwf	TBLPTRU, A		; load upper bits to TBLPTRU
 	movlw	high(myTable)	; address of data in PM
 	movwf	TBLPTRH, A		; load high byte to TBLPTRH
 	movlw	low(myTable)	; address of data in PM
 	movwf	TBLPTRL, A		; load low byte to TBLPTRL
-	movlw	myTable_l	; bytes to read
-	movwf 	counter, A		; our counter register
-loop: 	tblrd*+			; one byte from PM to TABLAT, increment TBLPRT
-	movff	TABLAT, POSTINC0; move data from TABLAT to (FSR0), inc FSR0	
-	decfsz	counter, A		; count down to zero
-	bra	loop		; keep going until finished
+	
+	call	copy_PM_to_RAM
+	call	send_UART
+	call	send_LCD
 		
+	goto	$		; goto current line in code
+
+	
+copy_PM_to_RAM:
+	lfsr	0, myArray	; Load FSR0 with address in RAM	
+	movlw	myTable_l	; bytes to read
+	movwf 	counter, A	; our counter register
+loop: 	
+	tblrd*+			; one byte from PM to TABLAT, increment TBLPRT
+	movff	TABLAT, POSTINC0; move data from TABLAT to (FSR0), inc FSR0	
+	decfsz	counter, A	; count down to zero
+	bra	loop		; keep going until finished
+	return
+	
+send_UART:
 	movlw	myTable_l	; output message to UART
 	lfsr	2, myArray
 	call	UART_Transmit_Message
-
+	return
+	
+send_LCD:			; different outputting method if button is pushed
+	btfsc	PORTA, 0, A	; check RA0 (conected to button)
+	bra	use_direct_loop	; send characters directly if button is pressed
+use_indirect_loop:
 	movlw	myTable_l	; output message to LCD
-	addlw	0xff		; don't send the final carriage return to LCD
 	lfsr	2, myArray
 	call	LCD_Write_Message
-	
-start2: 
-	
-	lfsr	0, myArray2	; Load FSR0 with address in RAM	
-	movlw	low highword(myTable2)	; address of data in PM
+	return
+use_direct_loop:		; reset TBLRT
+	movlw	low highword(myTable)	; address of data in PM
 	movwf	TBLPTRU, A		; load upper bits to TBLPTRU
-	movlw	high(myTable2)	; address of data in PM
+	movlw	high(myTable)	; address of data in PM
 	movwf	TBLPTRH, A		; load high byte to TBLPTRH
-	movlw	low(myTable2)	; address of data in PM
+	movlw	low(myTable)	; address of data in PM
 	movwf	TBLPTRL, A		; load low byte to TBLPTRL
-	movlw	myTable_2	; bytes to read
-	movwf 	counter2, A		; our counter register
-loop2:  tblrd*+			; one byte from PM to TABLAT, increment TBLPRT
-	movff	TABLAT, POSTINC0; move data from TABLAT to (FSR0), inc FSR0	
-	decfsz	counter2, A		; count down to zero
-	bra	loop2		; keep going until finished
-	call	line2_shift
-	movlw	myTable_2	; output message to LCD
-	addlw	0xff		; don't send the final carriage return to LCD
+	movlw   myTable_l
+	call	LCD_Write_Message_direct	
+	return
 	
-	call	LCD_Write_Message
-
-	goto	$		; goto current line in code
-
-	; a delay subroutine if you need one, times around loop in delay_count
+	
+; a delay subroutine if you need one, times around loop in delay_count
 delay:	decfsz	delay_count, A	; decrement until zero
 	bra	delay
 	return
-
 	end	rst

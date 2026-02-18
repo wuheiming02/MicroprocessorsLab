@@ -18,9 +18,9 @@
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>config.s</itemPath>
-      <itemPath>UART.s</itemPath>
       <itemPath>LCD_output_code.s</itemPath>
       <itemPath>LCD.s</itemPath>
+      <itemPath>UART.s</itemPath>
     </logicalFolder>
   </logicalFolder>
   <sourceRootList>
@@ -605,6 +605,8 @@
         <property key="periphComp5.gte" value="gt"/>
         <property key="periphComp6.gte" value="gt"/>
         <property key="poweroptions.powerenable" value="false"/>
+        <property key="programmerToGoFilePath"
+                  value="C:/Users/hhw221/OneDrive - Imperial College London/Documents/GitHub/MicroprocessorsLab/debug/default/default_ptg"/>
         <property key="programmerToGoImageName" value="default_ptg"/>
         <property key="programoptions.donoteraseauxmem" value="false"/>
         <property key="programoptions.eraseb4program" value="true"/>
