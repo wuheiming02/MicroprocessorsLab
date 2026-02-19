@@ -1,6 +1,6 @@
 #include <xc.inc>
 
-global  LCD_Setup, LCD_Write_Message, clear_LCD, line2_shift, LCD_Write_Message_direct, LCD_Send_Byte_D, LCD_delay_ms
+global  LCD_Setup, LCD_Write_Message, clear_LCD, line2_shift, LCD_Write_Message_direct, LCD_Send_Byte_D, LCD_delay_ms, LCD_Send_Byte_I, LCD_delay_x4us
 
 psect	udata_acs   ; named variables in access ram
 LCD_cnt_l:	ds 1   ; reserve 1 byte for variable LCD_cnt_l
@@ -181,8 +181,6 @@ line2_shift:
 	call	LCD_delay_x4us
 	return
 	
-
-    
     end
 
 
