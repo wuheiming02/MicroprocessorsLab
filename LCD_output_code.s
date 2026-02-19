@@ -14,9 +14,9 @@ psect	data
 	; ******* myTable, data in programme memory, and its length *****
 myTable:
 	db	'H','e','l','l','o',' ','W','o','r','l','d','!', 0x0d
-	db	'G','o','o','d',' ','N','i','g','h','t'
+	db	'G','o','o','d',' ','N','i','g','h','t', 0x0d
 					; message, plus carriage return
-	myTable_l   EQU	23	; length of data
+	myTable_l   EQU	24	; length of data
 	align	2
     
 psect	code, abs	
@@ -28,7 +28,7 @@ setup:
 	bcf	CFGS	; point to Flash program memory  
 	bsf	EEPGD 	; access Flash program memory
 	call	UART_Setup	; setup UART
-	call	LCD_Setup	; setup UART
+	call	LCD_Setup	; setup LCD
 	
 	clrf	LATA, A	; setup port A as button press
 	movlw	0x01	; RA0 is input to be read later
