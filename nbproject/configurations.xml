@@ -21,6 +21,10 @@
       <itemPath>main.s</itemPath>
     </logicalFolder>
     <itemPath>kpmain.s</itemPath>
+<<<<<<< Updated upstream
+=======
+    <itemPath>kpmain.s</itemPath>
+>>>>>>> Stashed changes
   </logicalFolder>
   <projectmakefile>Makefile</projectmakefile>
   <confs>
