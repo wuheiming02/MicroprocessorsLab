@@ -2,30 +2,30 @@
 #include <xc.inc>
 
 ; Final
-global  Process_ADC        ; make visible to other files
+global  Process_ADC       ; make visible to other files
 
 ; ==============================
 ; DATA SECTION (Access RAM)
 ; ==============================
 psect udata_acs
 
-ADC_L      ds 1
-ADC_H      ds 1
+ADC_L:      ds 1
+ADC_H:      ds 1
 
-RES0       ds 1
-RES1       ds 1
-RES2       ds 1
-RES3       ds 1
+RES0:       ds 1
+RES1:       ds 1
+RES2:       ds 1
+RES3:       ds 1
 
-VAL0       ds 1
-VAL1       ds 1
-VAL2       ds 1
-VAL3       ds 1
+VAL0:       ds 1
+VAL1:       ds 1
+VAL2:       ds 1
+VAL3:       ds 1
 
-DIG3       ds 1
-DIG2       ds 1
-DIG1       ds 1
-DIG0       ds 1
+DIG3:       ds 1
+DIG2:       ds 1
+DIG1:       ds 1
+DIG0:       ds 1
 
 ; ==============================
 ; CONSTANTS
@@ -33,7 +33,7 @@ DIG0       ds 1
 K_L        equ 0x8A
 K_H        equ 0x41
 
-psect code
+psect adc_code, class=CODE
 
 ; ========================================
 ; Process ADC ? Decimal Digits
@@ -95,8 +95,6 @@ Mul16x16:
     addwf   RES1, F      ; add shifted result
     movf    PRODH, W
     addwfc  RES2, F
-    clrf    WREG
-    addwfc  RES3, F
 
 ;------------------------------------------
 ; 3) AH × KL
@@ -142,28 +140,28 @@ Mul24x10:
 ;-----------------------
 ; x2 (shift left once)
 ;-----------------------
-    rlf     RES0, F
-    rlf     RES1, F
-    rlf     RES2, F
-    rlf     RES3, F
+    rlcf     RES0, F
+    rlcf     RES1, F
+    rlcf     RES2, F
+    rlcf     RES3, F
 
 ;-----------------------
 ; x8 (shift left 3)
 ;-----------------------
-    rlf     VAL0, F
-    rlf     VAL1, F
-    rlf     VAL2, F
-    rlf     VAL3, F
+    rlcf     VAL0, F
+    rlcf     VAL1, F
+    rlcf     VAL2, F
+    rlcf     VAL3, F
 
-    rlf     VAL0, F
-    rlf     VAL1, F
-    rlf     VAL2, F
-    rlf     VAL3, F
+    rlcf     VAL0, F
+    rlcf     VAL1, F
+    rlcf     VAL2, F
+    rlcf     VAL3, F
 
-    rlf     VAL0, F
-    rlf     VAL1, F
-    rlf     VAL2, F
-    rlf     VAL3, F
+    rlcf     VAL0, F
+    rlcf     VAL1, F
+    rlcf     VAL2, F
+    rlcf     VAL3, F
 
 ;-----------------------
 ; Add x2 + x8

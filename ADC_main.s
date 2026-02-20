@@ -1,4 +1,4 @@
-Main loop code: 
+; Main loop code: 
 #include <xc.inc>
 
 ; Final
@@ -13,6 +13,13 @@ extrn   ADC_Setup
 extrn   ADC_Read
 
 global  rst
+    
+psect udata_acs
+
+DIG3:       ds 1
+DIG2:       ds 1
+DIG1:       ds 1
+DIG0:       ds 1
 
 psect code, abs
 
@@ -34,7 +41,7 @@ main_loop:
     call    clear_LCD
 
     ; Thousands
-    movf    DIG3, W
+    movf    DIG3, W, A
     addlw   0x30
     call    LCD_Send_Byte_D
 
@@ -43,17 +50,17 @@ main_loop:
     call    LCD_Send_Byte_D
 
     ; Hundreds
-    movf    DIG2, W
+    movf    DIG2, W, A
     addlw   0x30
     call    LCD_Send_Byte_D
 
     ; Tens
-    movf    DIG1, W
+    movf    DIG1, W, A
     addlw   0x30
     call    LCD_Send_Byte_D
 
     ; Units
-    movf    DIG0, W
+    movf    DIG0, W, A
     addlw   0x30
     call    LCD_Send_Byte_D
 
