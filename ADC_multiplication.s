@@ -3,6 +3,7 @@
 
 ; Final
 global  Process_ADC       ; make visible to other files
+global	DIG3, DIG2, DIG1, DIG0
 
 ; ==============================
 ; DATA SECTION (Access RAM)
@@ -59,7 +60,10 @@ Process_ADC:
     movff   VAL3, DIG1
 
     call    Mul24x10
-    movff   VAL3, DIG0
+    ; movff   VAL3, DIG0
+    movf    VAL3, W
+    andlw   0x0F
+    movwf   DIG0
 
     return
 

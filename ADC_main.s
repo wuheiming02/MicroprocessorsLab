@@ -11,6 +11,8 @@ extrn   LCD_delay_ms
 extrn   Process_ADC     ; from adc_math.asm
 extrn   ADC_Setup
 extrn   ADC_Read
+    
+extrn	DIG3, DIG2, DIG1, DIG0
 
 global  rst
     
