@@ -18,10 +18,10 @@
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>config.s</itemPath>
-      <itemPath>ADC_main.s</itemPath>
-      <itemPath>ADC_multiplication.s</itemPath>
-      <itemPath>ADC_setup.s</itemPath>
       <itemPath>LCD.s</itemPath>
+      <itemPath>ADC_mainA.s</itemPath>
+      <itemPath>ADC_multiplicationA.s</itemPath>
+      <itemPath>ADC_setupA.s</itemPath>
     </logicalFolder>
   </logicalFolder>
   <sourceRootList>
