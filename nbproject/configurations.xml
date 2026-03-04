@@ -18,10 +18,8 @@
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>config.s</itemPath>
-      <itemPath>LCD.s</itemPath>
-      <itemPath>ADC_mainA.s</itemPath>
-      <itemPath>ADC_multiplicationA.s</itemPath>
-      <itemPath>ADC_setupA.s</itemPath>
+      <itemPath>KeypadMain.s</itemPath>
+      <itemPath>KeypadTimer.s</itemPath>
     </logicalFolder>
   </logicalFolder>
   <sourceRootList>
