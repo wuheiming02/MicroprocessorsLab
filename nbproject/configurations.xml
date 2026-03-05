@@ -18,8 +18,12 @@
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>config.s</itemPath>
+      <itemPath>KeyPad.s</itemPath>
+      <itemPath>LCD.s</itemPath>
       <itemPath>KeypadMain.s</itemPath>
       <itemPath>KeypadTimer.s</itemPath>
+      <itemPath>NokiaRun.s</itemPath>
+      <itemPath>NokiaSetup.s</itemPath>
     </logicalFolder>
   </logicalFolder>
   <sourceRootList>

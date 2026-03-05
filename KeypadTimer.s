@@ -2,6 +2,9 @@
 	
 global	Timer_Setup, Timer_Interrupt
     
+extrn Lock_Character
+extrn idle_timer
+    
 psect	udata_acs
 timer_counter:	ds 1
     
@@ -10,14 +13,12 @@ psect	dac_code, class=CODE
 Timer_Setup:
 	clrf	timer_counter, A
 	
-	clrf	TRISD, A
-	
 	movlw	0xE7 ; F9
 	movwf	TMR0H, A
 	movlw	0xF6 ; E5
 	movwf	TMR0L, A
 	
-	movlw	1000111B
+	movlw	10000111B
 	movwf	T0CON, A
 	
 	bsf	TMR0IE
@@ -40,15 +41,20 @@ Timer_Interrupt:
 	goto	not_15
 
 yes_15:
-	clrf	timer_counter, A
+	bcf	TMR0IF
+	movlw	0x00
+	movwf	timer_counter, A
 	movlw	0xFF
-	movwf	LATD, A
+	movwf	LATJ, A
+	
+	call    Lock_Character
+        clrf    idle_timer, A
+	
+	retfie	f
 	
 not_15:
 	bcf	TMR0IF
-	clrf	LATD, A
+	movlw	0X00
+	movwf	LATJ, A
 	retfie	f
 	
-	end
-
-
