@@ -4,7 +4,7 @@ extrn	timer_counter
     
 global	TimerSetup, TimerInterrupt
     
-psect	dac_code, class=CODE
+psect	timer_code, class=CODE
     
 TimerSetup:	
 	movlw	0xE7 

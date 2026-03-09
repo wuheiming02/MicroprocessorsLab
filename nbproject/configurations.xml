@@ -23,6 +23,7 @@
       <itemPath>Proj_DecodeMorseCode.s</itemPath>
       <itemPath>Proj_ReadMorseCode.s</itemPath>
       <itemPath>Proj_Timer.s</itemPath>
+      <itemPath>Proj_MorseLCD.s</itemPath>
     </logicalFolder>
   </logicalFolder>
   <sourceRootList>

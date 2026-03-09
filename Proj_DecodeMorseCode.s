@@ -16,7 +16,7 @@ temp_bits:	ds 1
 alignment_counter:  ds 1
 
     
-psect	dac_code, class=CODE
+psect	decode_morse_code, class=CODE
 	
 morse_table:
     db	    '?','?','E','T','I','A','N','M'
@@ -79,7 +79,7 @@ NextSymbol:
     incf    FSR0H, F, A
     
     movf    INDF0, W, A
-    call    LCD_Send_Byte_D
+    call    LCDPrintDecoded
     
     goto    ClearBuffer
 

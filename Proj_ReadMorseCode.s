@@ -8,7 +8,7 @@ extrn   LCD_Setup
 extrn   LCD_Send_Byte_D
 extrn   clear_LCD
     
-extrn	DecodeLetter
+extrn	Letter
 extrn	StoreSymbol
 extrn	ClearBuffer
     
