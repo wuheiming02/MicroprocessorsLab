@@ -117,7 +117,11 @@ MorseError:
     call    LCD_delay_ms
     movlw   250
     call    LCD_delay_ms
-
+    movlw   250
+    call    LCD_delay_ms
+    movlw   250
+    call    LCD_delay_ms
+    
     call    LCDClearLine2
     
     return
