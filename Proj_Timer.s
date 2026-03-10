@@ -7,9 +7,9 @@ global	TimerSetup, TimerInterrupt
 psect	timer_code, class=CODE
     
 TimerSetup:	
-	movlw	0xE7 
+	movlw	0x0B
 	movwf	TMR0H, A
-	movlw	0x96 
+	movlw	0xDC 
 	movwf	TMR0L, A
 	
 	movlw	10000111B
@@ -29,9 +29,9 @@ TimerInterrupt:
 	cpfsgt	timer_counter, A
 	incf	timer_counter, F, A
 	
-	movlw	0xE7
+	movlw	0x0B
 	movwf	TMR0H, A
-	movlw	0xF6
+	movlw	0xDC
 	movwf	TMR0L, A
 	
 	movlw	10000111B

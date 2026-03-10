@@ -5,6 +5,11 @@ global	LCDPrintSymbol
 global	LCDPrintError
 global	LCDClearLine2
     
+global	decoded_count
+global	decoded_char
+global	shift_count
+global	line2_pos
+    
 extrn	LCD_Send_Byte_D
 extrn	LCD_Send_Byte_I
 extrn	LCD_delay_ms
@@ -12,7 +17,6 @@ extrn	LCD_delay_x4us
     
 extrn	temp_symbol
 
-    
 psect	udata_acs
 decoded_count:	ds 1
 shift_count:	ds 1
@@ -29,10 +33,19 @@ LCDPrintDecoded:
     cpfseq  decoded_count, A
     bra	    PrintChar
     
+    clrf    decoded_count, A
+    clrf    shift_count, A
+    
     call    LCDPrintError
     return
     
 PrintChar:
+    movlw   0x80
+    addwf   decoded_count, W, A
+    call    LCD_Send_Byte_I
+    movlw   10
+    call    LCD_delay_x4us
+    
     movf    decoded_char, W, A
     call    LCD_Send_Byte_D
     incf    decoded_count, F, A
@@ -96,6 +109,8 @@ ClearLoop:
     
     
 LCDPrintError:
+    call    LCDClearLine2
+    
     movlw   0x40
     addlw   0x80
     addwf   shift_count, W, A

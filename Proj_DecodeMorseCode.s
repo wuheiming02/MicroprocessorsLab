@@ -1,7 +1,6 @@
 #include <xc.inc>
 
 extrn	TimerSetup, TimerInterrupt
-extrn	temp_symbol
 
 extrn   LCD_Send_Byte_D
 extrn	LCD_delay_ms
@@ -12,6 +11,7 @@ extrn	LCDPrintError
 extrn	LCDClearLine2
     
 global	DecodeLetter, StoreSymbol, ClearBuffer
+global	temp_symbol
 
 psect	udata_acs 
 bit_buffer:	ds 1
@@ -19,6 +19,7 @@ bit_length:	ds 1
 tree_index:	ds 1
 counter:	ds 1
 temp_bits:	ds 1
+temp_symbol:	ds 1
 alignment_counter:  ds 1
 
     
@@ -40,6 +41,9 @@ StoreSymbol:
     rlcf    bit_buffer, f, A
     
     movf    temp_symbol, W, A
+    call    LCDPrintSymbol
+    
+    movf    temp_symbol, W, A
     xorlw   '-'
     bnz	    StoreDot
     
@@ -47,7 +51,7 @@ StoreSymbol:
     
 StoreDot:
     incf    bit_length, F, A
-    call    LCDPrintSymbol
+    
     return
     
 DecodeLetter:
@@ -113,6 +117,10 @@ MorseError:
     call    LCDPrintError
     call    ClearBuffer
     
+    movlw   250
+    call    LCD_delay_ms
+    movlw   250
+    call    LCD_delay_ms
     movlw   250
     call    LCD_delay_ms
     movlw   250
