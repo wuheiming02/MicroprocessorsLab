@@ -1,453 +1,232 @@
 #include <xc.inc>
 
-; ============================================================
-; Main Nokia-style multi-tap text entry program
-;
-; Behaviour:
-; - Uses keypad numeric keys 0..9 for multi-tap text entry
-; - 0 cycles: space, 0
-; - 1 cycles: 1
-; - 2 cycles: A, B, C, 2
-; - ...
-; - 9 cycles: W, X, Y, Z, 9
-;
-; Event-based input:
-; - Press event  = current key != previous key and current != 0xFF
-; - Release event = current key == 0xFF and previous != 0xFF
-;
-; Timing:
-; - Timer0 interrupt fires every 250 ms
-; - ISR only increments timer_counter while timer_running = 1
-; - timer_counter is clamped at 6
-; - Main code locks the current preview character when timer_counter == 6
-;
-; LCD behaviour:
-; - Locked characters go to line 1
-; - After 16 locked chars, LCD shifts left by 1 for each new locked char
-; - After 32 locked chars, line 2 shows ERROR
-; ============================================================
+extrn	TimerSetup, TimerInterrupt
 
-; ============================================================
-; External modules
-; ============================================================
-extrn   TimerSetup
-extrn   TimerInterrupt
-
-extrn   KeyPad_Init
-extrn   KeyPad_Read
+extrn   KeyPad_Init, KeyPad_Read
 
 extrn   LCD_Setup
+extrn   LCD_Send_Byte_D
 extrn   clear_LCD
+extrn	LCD_delay_ms
 
-extrn   LCDNokia_Init
-extrn   LCDPrintPreview
-extrn   LCDLockCharacter
-extrn   LCDPrintError
+extrn	DecodeChar
+    
+extrn	shift_counter
+extrn	LCDPrintDecoded, ShiftCursorRight, LCDPrintOverflow
+    
+global	timer_counter, lock_counter, key_counter, current_key
 
-extrn   locked_count
+psect	udata_acs
+timer_counter:	ds 1 
+current_state:	ds 1 
+last_state:	ds 1 
+current_key:	ds 1 
+last_key:	ds 1
+lock_counter:	ds 1
+key_counter:	ds 1
+decoded_char:	ds 1
+message_buffer: ds 32 
 
-; ============================================================
-; Shared variables used by Timer.asm
-; Keep these global so TimerInterrupt can access them
-; ============================================================
-global  timer_counter
-global  timer_running
-
-; ============================================================
-; Local state variables
-; ============================================================
-psect   udata_acs
-
-timer_counter:      ds 1    ; Counts 250 ms ticks, clamped at 6
-timer_running:      ds 1    ; 1 while waiting for 1500 ms timeout
-
-current_key:        ds 1    ; Current keypad sample (ASCII or 0xFF)
-prev_key:           ds 1    ; Previous keypad sample
-last_key:           ds 1    ; Currently active numeric key being edited
-same_key_count:     ds 1    ; Position inside that key's character cycle
-current_char:       ds 1    ; Current preview character
-char_limit:         ds 1    ; Number of valid entries for current key
-nokia_index:        ds 1    ; Table index for Nokia lookup
-
-; ============================================================
-; Absolute code section with reset and high interrupt vectors
-; This mirrors the Morse project style
-; ============================================================
-psect   code, abs
-
+    
+psect	code, abs
+	
 rst:
-        org     0x0000
-        goto    start
+	org	0x0000	; reset vector
+	goto	start
 
 int_hi:
-        org     0x0008
-        goto    TimerInterrupt
-
-; ============================================================
-; Program start
-; ============================================================
+	org	0x0008	; high vector, no low vector
+	goto	TimerInterrupt
+	
 start:
-        ; Reset software timing state
-        clrf    timer_counter, A
-        clrf    timer_running, A
+	clrf	timer_counter, A
+	clrf	current_state, A
+	clrf	last_state, A
+	clrf	current_key, A
+	clrf	last_key, A
+	clrf	lock_counter, A
+	clrf	key_counter, A
+	clrf	decoded_char, A
+	clrf	message_buffer, A
 
-        ; Reset keypad / text-entry state
-        movlw   0xFF
-        movwf   current_key, A
-        movwf   prev_key, A
-        movwf   last_key, A
+	clrf	shift_counter, A
+	
+	call    LCD_Setup
+	call    clear_LCD
+	
+	call    KeyPad_Init
+	
+SetupWaitLoop:
+	call	KeyPad_Read
+	
+	movwf	current_key, A
+	
+EntryCheckHigh:
+	movlw	'9'
+	cpfsgt	current_key, A
+	bra	EntryCheckLow
+	
+	bra	SetupWaitLoop
+	
+EntryCheckLow:
+	movlw	'0'
+	cpfslt	current_key, A
+	bra	MainLoop
+	
+	bra	SetupWaitLoop
 
-        clrf    same_key_count, A
-        clrf    current_char, A
-        clrf    char_limit, A
-        clrf    nokia_index, A
-
-        ; Initialise LCD and keypad hardware
-        call    LCD_Setup
-        call    clear_LCD
-        call    KeyPad_Init
-
-        ; Initialise Nokia LCD-side counters/state
-        call    LCDNokia_Init
-
-        ; Start timer after hardware/software init
-        call    TimerSetup
-
-; ============================================================
-; Main loop
-; ============================================================
 MainLoop:
-        ; ----------------------------------------------------
-        ; Timeout handling:
-        ; If timer_counter reached 6, then 6 * 250 ms = 1500 ms
-        ; If a preview character is active, lock it now.
-        ; ----------------------------------------------------
-        movlw   6
-        cpfseq  timer_counter, A
-        bra     ReadCurrentKey
-
-        ; Only lock if there is actually an active key being edited
-        movf    last_key, W, A
-        xorlw   0xFF
-        bz      ResetTimeoutOnly
-
-        call    LockCurrentChar
-
-ResetTimeoutOnly:
-        clrf    timer_counter, A
-        clrf    timer_running, A
-
-ReadCurrentKey:
-        ; Read current keypad value:
-        ; W = ASCII key or 0xFF if nothing pressed
-        call    KeyPad_Read
-        movwf   current_key, A
-
-        ; ----------------------------------------------------
-        ; If there is no state change, there is no event.
-        ; Just loop again.
-        ; ----------------------------------------------------
-        movf    prev_key, W, A
-        cpfseq  current_key, A
-        bra     StateChanged
-        bra     MainLoop
-
-; ============================================================
-; StateChanged
-; There was an input transition:
-; - press event
-; - release event
-; ============================================================
-StateChanged:
-        ; If current_key == 0xFF, that means key release
-        movlw   0xFF
-        cpfseq  current_key, A
-        bra     MaybePressEvent
-        bra     ReleaseEvent
-
-; ============================================================
-; ReleaseEvent
-; Start 1500 ms timer only after the key is released
-; ============================================================
-ReleaseEvent:
-        ; Only start timer if a preview character exists
-        movf    last_key, W, A
-        xorlw   0xFF
-        bz      SaveReleaseState
-
-        movlw   1
-        movwf   timer_running, A
-        clrf    timer_counter, A
-
-SaveReleaseState:
-        ; Previous key state becomes "no key"
-        movlw   0xFF
-        movwf   prev_key, A
-        bra     MainLoop
-
-; ============================================================
-; MaybePressEvent
-; Accept only numeric keys '0'..'9' for this version
-; Other keypad keys are ignored
-; ============================================================
-MaybePressEvent:
-        ; Check current_key <= '9'
-        movf    current_key, W, A
-        sublw   '9'
-        bc      CheckLowBound
-        bra     SavePressState
-
-CheckLowBound:
-        ; Check current_key >= '0'
-        movf    current_key, W, A
-        sublw   '0'
-        bnc     PressEventNumeric
-        bra     SavePressState
-
-; ============================================================
-; PressEventNumeric
-; Handle a valid numeric key press
-; ============================================================
-PressEventNumeric:
-        ; Any new key press cancels the waiting timeout
-        clrf    timer_running, A
-        clrf    timer_counter, A
-
-        ; If already at 32 locked characters, do not add more
-        movlw   32
-        cpfseq  locked_count, A
-        bra     CheckFirstOrSameOrDifferent
-        call    LCDPrintError
-        bra     SavePressState
-
-CheckFirstOrSameOrDifferent:
-        ; If no active key is being edited, this is a first press
-        movf    last_key, W, A
-        xorlw   0xFF
-        bz      FirstPress
-
-        ; Compare current pressed key with currently active key
-        movf    current_key, W, A
-        cpfseq  last_key, A
-        bra     DifferentKey
-
-; ============================================================
-; SameKey
-; Same numeric key pressed again:
-; advance to next char in that key's cycle
-; ============================================================
+	movlw	32
+	cpfslt	lock_counter, A
+	bra	Overflow	
+    
+	call	KeyPad_Read
+	movwf	current_key, A
+	
+	xorlw	0xFF
+	bz	KeyReleased
+	
+	bra	KeyPressed
+	
+KeyReleased:
+	movff	last_key, current_key
+	clrf	current_state, A
+	bra	CheckState
+	
+KeyPressed:
+	movlw	1
+	movwf	current_state, A
+	bra	CheckState
+	
+CheckState:
+	movf	current_state, W, A
+	cpfseq	last_state, A
+	bra	StateChange
+	
+	movf	current_state, W, A
+	bz	CheckTimer
+	bra	MainLoop
+	
+StateChange:
+	movff	current_state, last_state
+	movf	current_state, W, A
+	bz	ResetTimer
+	
+	bra	NumericKey
+	
+ResetTimer:
+	clrf	timer_counter, A
+	call	TimerSetup
+	bra	MainLoop
+	
+CheckTimer:
+	movlw	5
+	cpfsgt	timer_counter, A
+	bra	MainLoop
+	
+	call	LockChar
+	bra	MainLoop
+	
+NumericKey:
+	movf	lock_counter, W, A
+	bz	SameKey
+    
+	movf	current_key, W, A
+	cpfseq	last_key, A
+	call	LockChar
+	
+	bra	SameKey
+    
 SameKey:
-        ; Move to next cycle position
-        incf    same_key_count, F, A
-
-        ; Load per-key cycle length
-        call    GetKeyLimit
-
-        ; Wrap when same_key_count == char_limit
-        movf    char_limit, W, A
-        cpfseq  same_key_count, A
-        bra     SameKeyNoWrap
-        clrf    same_key_count, A
-
-SameKeyNoWrap:
-        ; Lookup the new preview character
-        call    NokiaLookup
-        movwf   current_char, A
-
-        ; Show preview on LCD line 1
-        movf    current_char, W, A
-        call    LCDPrintPreview
-        bra     SavePressState
-
-; ============================================================
-; DifferentKey
-; Different numeric key pressed:
-; lock previous preview immediately, then start new one
-; ============================================================
-DifferentKey:
-        call    LockCurrentChar
-
-; ============================================================
-; FirstPress
-; Start a new active character on the newly pressed key
-; ============================================================
-FirstPress:
-        ; Remember which key is active
-        movf    current_key, W, A
-        movwf   last_key, A
-
-        ; Start from the first entry in this key's cycle
-        clrf    same_key_count, A
-
-        ; Lookup first preview character
-        call    NokiaLookup
-        movwf   current_char, A
-
-        ; Show preview on LCD
-        movf    current_char, W, A
-        call    LCDPrintPreview
-
-SavePressState:
-        ; Save current key as previous key sample
-        movf    current_key, W, A
-        movwf   prev_key, A
-        bra     MainLoop
-
-; ============================================================
-; LockCurrentChar
-; Permanently lock current_char if one is active
-; ============================================================
-LockCurrentChar:
-        ; If no active key, nothing to lock
-        movf    last_key, W, A
-        xorlw   0xFF
-        bz      LockDone
-
-        ; Lock current preview character onto LCD line 1
-        movf    current_char, W, A
-        call    LCDLockCharacter
-
-        ; Clear active edit state so next press starts fresh
-        movlw   0xFF
-        movwf   last_key, A
-        clrf    same_key_count, A
-        clrf    current_char, A
-
-        ; Stop timeout timing after lock
-        clrf    timer_running, A
-        clrf    timer_counter, A
-
-LockDone:
-        return
-
-; ============================================================
-; GetKeyLimit
-; Load the number of valid cycle entries for the current key
-;
-; 0 -> [space, 0]                 = 2
-; 1 -> [1]                        = 1
-; 2 -> [A, B, C, 2]               = 4
-; 3 -> [D, E, F, 3]               = 4
-; 4 -> [G, H, I, 4]               = 4
-; 5 -> [J, K, L, 5]               = 4
-; 6 -> [M, N, O, 6]               = 4
-; 7 -> [P, Q, R, S, 7]            = 5
-; 8 -> [T, U, V, 8]               = 4
-; 9 -> [W, X, Y, Z, 9]            = 5
-; ============================================================
-GetKeyLimit:
-        movf    current_key, W, A
+	movff	current_key, last_key
+    
+	movf    current_key, W, A
         xorlw   '0'
-        bz      Limit0
+        bz      Exec0
 
         movf    current_key, W, A
         xorlw   '1'
-        bz      Limit1
+        bz      Exec1
 
         movf    current_key, W, A
         xorlw   '2'
-        bz      Limit234568
+        bz      Exec234568
         movf    current_key, W, A
         xorlw   '3'
-        bz      Limit234568
+        bz      Exec234568
         movf    current_key, W, A
         xorlw   '4'
-        bz      Limit234568
+        bz      Exec234568
         movf    current_key, W, A
         xorlw   '5'
-        bz      Limit234568
+        bz      Exec234568
         movf    current_key, W, A
         xorlw   '6'
-        bz      Limit234568
+        bz      Exec234568
         movf    current_key, W, A
         xorlw   '8'
-        bz      Limit234568
+        bz      Exec234568
 
         movf    current_key, W, A
         xorlw   '7'
-        bz      Limit79
+        bz      Exec79
         movf    current_key, W, A
         xorlw   '9'
-        bz      Limit79
+        bz      Exec79
+	
+Exec0:
+	incf	key_counter, A
+	movlw	3
+	cpfslt	key_counter, A
+	call	CounterWrap
+	
+	bra	DecodeKey
+	  
+Exec1:
+	incf	key_counter, A
+	movlw	2
+	cpfslt	key_counter, A
+	call	CounterWrap
+	
+	bra	DecodeKey
+ 
+Exec234568:
+	incf	key_counter, A
+	movlw	5
+	cpfslt	key_counter, A
+	call	CounterWrap
+	
+	bra	DecodeKey
+    
+Exec79:
+	incf	key_counter, A
+	movlw	6
+	cpfslt	key_counter, A
+	call	CounterWrap
+	
+	bra	DecodeKey
+    
+CounterWrap:
+	movlw	1
+	movwf	key_counter, A
+	return
+	
+DecodeKey:
+	call	DecodeChar
+	movwf	decoded_char, A
+	call	LCDPrintDecoded 
+	bra	MainLoop
 
-        ; Safe fallback
-        movlw   1
-        movwf   char_limit, A
-        return
-
-Limit0:
-        movlw   2
-        movwf   char_limit, A
-        return
-
-Limit1:
-        movlw   1
-        movwf   char_limit, A
-        return
-
-Limit234568:
-        movlw   4
-        movwf   char_limit, A
-        return
-
-Limit79:
-        movlw   5
-        movwf   char_limit, A
-        return
-
-; ============================================================
-; NokiaLookup
-; Lookup current cycle character from a fixed 5-byte block table
-;
-; table_index = (numeric_key * 5) + same_key_count
-; ============================================================
-NokiaLookup:
-        ; Convert ASCII '0'..'9' to numeric 0..9
-        movf    current_key, W, A
-        addlw   -'0'
-
-        ; Multiply by 5 because each key owns 5 table entries
-        mullw   5
-
-        ; Add cycle offset inside that key block
-        movf    PRODL, W, A
-        addwf   same_key_count, W, A
-        movwf   nokia_index, A
-
-        ; Point table pointer at the Nokia table
-        movlw   low highword(Nokia_Table)
-        movwf   TBLPTRU, A
-        movlw   high(Nokia_Table)
-        movwf   TBLPTRH, A
-        movlw   low(Nokia_Table)
-        movwf   TBLPTRL, A
-
-        ; Add table index
-        movf    nokia_index, W, A
-        addwf   TBLPTRL, F, A
-
-        ; Read byte from program memory into W
-        tblrd*
-        movf    TABLAT, W, A
-        return
-
-; ============================================================
-; Nokia multi-tap lookup table
-; Each key owns a 5-byte block
-; Unused bytes are padded with spaces
-; ============================================================
-psect   data
-
-Nokia_Table:
-        db ' ','0',' ',' ',' '
-        db '1',' ',' ',' ',' '
-        db 'A','B','C','2',' '
-        db 'D','E','F','3',' '
-        db 'G','H','I','4',' '
-        db 'J','K','L','5',' '
-        db 'M','N','O','6',' '
-        db 'P','Q','R','S','7'
-        db 'T','U','V','8',' '
-        db 'W','X','Y','Z','9'
-
-end     rst
+LockChar:
+	clrf	key_counter, A
+	clrf	timer_counter, A
+	incf	lock_counter, A
+	call	ShiftCursorRight
+	
+	return
+	
+Overflow:
+	call	LCDPrintOverflow
+	bra	MainLoop
+    
+	end	rst

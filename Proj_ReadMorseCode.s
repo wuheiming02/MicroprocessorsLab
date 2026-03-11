@@ -16,19 +16,20 @@ extrn	ClearBuffer
 extrn	LCDPrintDecoded
 extrn	LCDPrintError
 extrn	LCDClearLine2
+extrn	MorseError
     
 extrn	decoded_count
-extrn	decoded_char
 extrn	shift_count
 extrn	line2_pos
     
-global	timer_counter
+global	timer_counter, decoded_char
 
 psect	udata_acs
 timer_counter:	ds 1 ; track amount of time pressed or released
 key_state:	ds 1 ; whether the button was pressed or not
 last_key_state:	ds 1 ; whether the button was pressed or not in the last check
 morse_index:	ds 1 
+decoded_char:	ds 1
 
     
 psect	code, abs
@@ -118,9 +119,24 @@ ReleaseFinished:
 	
 DecodeChar:
 	call	DecodeLetter
+	movwf	decoded_char, A
+	
+	movf	decoded_char, W, A
+	xorlw	'?'
+	bz	InvalidMorse
+	
+	call	PrintChar
+	bra	ResetTimer
+	
+InvalidMorse:
+	call	MorseError
+	bra	ResetTimer
+	
+PrintChar:
 	call    LCDPrintDecoded
 	call	LCDClearLine2
-	bra	ResetTimer
+	
+	return
 	
 ResetTimer:
 	clrf	timer_counter, A
@@ -153,8 +169,13 @@ CheckRelease:
 	bra	MainLoop
 	
 	call	DecodeLetter
-	call    LCDPrintDecoded
-	call    LCDClearLine2
+	movwf	decoded_char, A
+	
+	movf	decoded_char, W, A
+	xorlw	'?'
+	bz	InvalidMorseWait
+	
+	call	PrintChar
 	movlw	' '
 	call	LCDPrintDecoded
 	
@@ -164,5 +185,9 @@ WaitPress:
 	bnz	WaitPress
 	call	LCDClearLine2
 	bra	ResetTimer
+	
+InvalidMorseWait:
+	call	MorseError
+	bra	WaitPress
 	
 	end	rst

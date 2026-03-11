@@ -10,7 +10,7 @@ extrn	LCDPrintDecoded
 extrn	LCDPrintError
 extrn	LCDClearLine2
     
-global	DecodeLetter, StoreSymbol, ClearBuffer
+global	DecodeLetter, StoreSymbol, ClearBuffer, MorseError
 global	temp_symbol
 
 psect	udata_acs 
@@ -102,10 +102,6 @@ NextSymbol:
     incf    TBLPTRU, F, A
     
     tblrd*
-    movf    TABLAT, W, A
-    xorlw   '?'
-    bz	    MorseError
-    
     movf    TABLAT, W, A
     goto    ClearBuffer
 

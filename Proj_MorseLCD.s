@@ -6,7 +6,6 @@ global	LCDPrintError
 global	LCDClearLine2
     
 global	decoded_count
-global	decoded_char
 global	shift_count
 global	line2_pos
     
