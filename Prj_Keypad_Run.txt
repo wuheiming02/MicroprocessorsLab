@@ -1,0 +1,144 @@
+#include <xc.inc>
+global Nokia_Run
+global current_key
+; From LCD.s and Keypad.s
+extrn KeyPad_Read
+extrn LCD_Send_Byte_D
+extrn clear_LCD
+; From Keypad_setup.s
+extrn Cursor_Left
+extrn Cursor_Right
+extrn Lock_Character
+extrn Nokia_Lookup
+extrn last_key
+extrn same_key_count
+extrn msg_index
+extrn cursor_pos
+; From Keypad_Timer.s
+extrn idle_timer
+; ============================================================
+; VARIABLES
+; ============================================================
+psect udata_acs
+current_key: ds 1
+; ============================================================
+; MAIN KEYPAD RUNTIME
+; ============================================================
+psect nokia_run_code,class=CODE
+Nokia_Run:
+ clrf current_key, A ; Reset current_key value
+ call KeyPad_Read ; Returns ASCII value of key
+pressed in W (i.e.,0, 1, 2, ..., 9, A, B, ..., F)
+ movwf current_key, A ; Moves key pressed from W to
+current_key
+ movlw 0xFF ; Invalid case check when no key
+is pressed
+ cpfseq current_key, A ; If current_key is 0xFF, then
+skip next line
+ bra key_pressed
+ return ; Allows us to remain in a loop
+of constantly scanning the keypad for presses
+key_pressed:
+ clrf idle_timer, A
+; ============================================================
+; SPECIAL KEYS
+; ============================================================
+ movf current_key, W, A ; Move current_key value into W
+ xorlw 'F' ; Literal XOR gate: if
+current_key == 'F', output 0 in W and set zero flag
+ bz key_F ; Branch to key_F function if
+the zero flag is set
+
+ ; The same logic applies to the other special keys
+ movf current_key, W, A
+ xorlw 'E'
+ bz key_E
+ movf current_key, W, A
+ xorlw 'D'
+ bz key_D
+ movf current_key, W, A
+ xorlw 'A'
+ bz key_A
+ movf current_key, W, A
+ xorlw 'B'
+ bz key_B
+ movf current_key, W, A
+ xorlw 'C'
+ bz key_C
+; ============================================================
+; NORMAL NOKIA KEYS
+; ============================================================
+ movf current_key, W, A ; Move current_key value into W
+ cpfseq last_key, A ; If last_key == current_key,
+then skip next line (same key case)
+ bra new_key
+same_key:
+ incf same_key_count, F, A ; Increments the same_key_count
+and places it back into same_key_count
+
+ movlw 4 ; Maximum entries per key (0-4
+are valid inputs)
+ cpfsgt same_key_count, A ; If same_key_count > 4, then
+skip next line
+ goto continue_lookup
+
+ clrf same_key_count, A ; Resets same_key_count back to
+0 - so will start the character loop for that key again
+continue_lookup:
+
+ call Nokia_Lookup ; Subroutine in Keypad_Setup.s
+that uses a table to select the character and output the ASCII value
+in W
+ call LCD_Send_Byte_D ; Sends the value in W to the
+LCD
+ return ; Returns back to the loop
+new_key:
+; Check if this is the first character being pressed (ever, or the
+first character after a character has just been locked)
+
+ movf last_key, W, A ; Moves last_key into W
+ xorlw 0xFF ; if last_key == 0xFF (initial
+condition), set zero flag
+ bz first_char ; Branch to first_char if zero
+flag is set
+ call Lock_Character ; Call Lock_Character routine
+otherwise
+first_char:
+ movf current_key, W, A
+ movwf last_key, A ; Set last_key as current_key
+ clrf same_key_count, A ; Clear same_key_count
+ call Nokia_Lookup
+ call LCD_Send_Byte_D
+ return
+; ============================================================
+; SPECIAL KEY IMPLEMENTATIONS
+; ============================================================
+key_F: ; Clears LCD and resets device
+ call clear_LCD
+ clrf msg_index, A
+ clrf cursor_pos, A
+ return
+key_E:
+ call Cursor_Left
+ decf msg_index, F, A
+ movlw ' '
+ call LCD_Send_Byte_D
+ call Cursor_Left
+ return
+key_D:
+ movlw 32
+ subwf msg_index, W, A
+ addlw '0'
+ call LCD_Send_Byte_D
+ return
+key_A:
+ call Cursor_Left
+ return
+key_B:
+ call Cursor_Right
+ return
+key_C:
+ call Lock_Character
+ ; UART transmit would go here
+ return
+end

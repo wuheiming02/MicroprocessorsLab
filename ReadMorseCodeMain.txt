@@ -7,6 +7,7 @@ extrn   KeyPad_Init, KeyPad_Read
 extrn   LCD_Setup
 extrn   LCD_Send_Byte_D
 extrn   clear_LCD
+extrn	LCD_delay_ms
     
 extrn	DecodeLetter
 extrn	StoreSymbol
@@ -16,14 +17,18 @@ extrn	LCDPrintDecoded
 extrn	LCDPrintError
 extrn	LCDClearLine2
     
-global	timer_counter, temp_symbol
+extrn	decoded_count
+extrn	decoded_char
+extrn	shift_count
+extrn	line2_pos
+    
+global	timer_counter
 
 psect	udata_acs
 timer_counter:	ds 1 ; track amount of time pressed or released
 key_state:	ds 1 ; whether the button was pressed or not
 last_key_state:	ds 1 ; whether the button was pressed or not in the last check
 morse_index:	ds 1 
-temp_symbol:	ds 1
 
     
 psect	code, abs
@@ -42,11 +47,23 @@ start:
 	clrf	last_key_state, A
 	clrf	morse_index, A
 	
+	clrf	decoded_count, A
+	clrf	shift_count, A
+	clrf	line2_pos, A
+	clrf	decoded_char, A
+	
 	call    LCD_Setup
 	call    clear_LCD
 	
 	call    KeyPad_Init
 	
+	call	ClearBuffer
+	
+SetupWaitLoop:
+	call	KeyPad_Read
+	
+	xorlw	'5'
+	bnz	SetupWaitLoop
 	call    TimerSetup
 
 MainLoop:
@@ -101,14 +118,14 @@ ReleaseFinished:
 	
 DecodeChar:
 	call	DecodeLetter
+	call    LCDPrintDecoded
 	call	LCDClearLine2
 	bra	ResetTimer
 	
 ResetTimer:
 	clrf	timer_counter, A
 	
-	movf	key_state, W, A
-	movwf	last_key_state, A
+	movff	key_state, last_key_state
 	bra	MainLoop	
 	
 NoStateChange:
@@ -136,7 +153,8 @@ CheckRelease:
 	bra	MainLoop
 	
 	call	DecodeLetter
-	call	LCDPrintDecoded
+	call    LCDPrintDecoded
+	call    LCDClearLine2
 	movlw	' '
 	call	LCDPrintDecoded
 	

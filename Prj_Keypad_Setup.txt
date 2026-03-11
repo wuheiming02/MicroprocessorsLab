@@ -1,0 +1,164 @@
+#include <xc.inc>
+global Nokia_Init
+global Lock_Character
+global Nokia_Lookup
+global Cursor_Right
+global Cursor_Left
+global Cursor_Update
+global last_key
+global same_key_count
+global cursor_pos
+global msg_index
+extrn LCD_Send_Byte_D
+extrn LCD_Send_Byte_I
+extrn clear_LCD
+extrn current_key
+; ============================================================
+; ACCESS RAM VARIABLES
+; ============================================================
+psect udata_acs
+last_key: ds 1
+same_key_count: ds 1
+nokia_index: ds 1
+msg_index: ds 1
+cursor_pos: ds 1
+line_number: ds 1
+message_buffer: ds 32
+; ============================================================
+; INITIALISE NOKIA SYSTEM
+; ============================================================
+psect nokia_setup_code,class=CODE
+Nokia_Init:
+ movlw 0xFF
+ movwf last_key, A
+ clrf same_key_count, A
+ clrf msg_index, A
+ clrf cursor_pos, A
+ clrf line_number, A
+ return
+; ============================================================
+; CURSOR UPDATE ROUTINE
+; ============================================================
+Cursor_Update:
+ movf cursor_pos, W, A
+ addlw 0x80 ; Value to move the
+cursor by
+ call LCD_Send_Byte_I ; Send an instruction to
+the LCD
+ return
+; ============================================================
+; CURSOR MOVE RIGHT
+; ============================================================
+Cursor_Right:
+ incf cursor_pos, F, A ; Increment cursor
+position (0-15 on one line)
+
+ ; Check whether we need to move to line 2
+ movlw 15
+ cpfsgt cursor_pos, A ; If cursor_pos > 15,
+skip the next line
+ goto update_cursor ; Subroutine that moves
+the cursor
+ ; Move to line 2
+ movlw 0x40
+ movwf cursor_pos, A ; Set address for start
+of line 2
+ movlw 1
+ movwf line_number, A ; line_number = 1
+indicates that we are on line 2
+update_cursor:
+ call Cursor_Update
+ return
+; ============================================================
+; CURSOR MOVE LEFT
+; ============================================================
+Cursor_Left:
+ decf cursor_pos, F, A
+ call Cursor_Update
+ return
+; ============================================================
+; LOCK CHARACTER
+; ============================================================
+Lock_Character:
+; Locks the character and saves the character in
+message_buffer[msg_index]
+; Further, it moves the cursor right for the next input
+; FSR0: Points to the address to store data
+; POSTINC0: Stores a value at the address pointed to by FSR0 and
+automatically increments the pointer
+
+ movf msg_index, W, A ; Copy current msg_index
+into W
+ addlw low(message_buffer) ; Add low byte of buffer
+base address
+ movwf FSR0L, A ; Set low byte pointer
+ movlw high(message_buffer) ; Get high byte of
+buffer address
+ movwf FSR0H, A ; Set high byte pointer
+ call Nokia_Lookup ; Get selected ASCII
+character in W
+ movwf POSTINC0, A ; Store into message
+buffer
+ incf msg_index, F, A ; Increment msg_index so
+it points to the next available index in buffer
+ call Cursor_Right ; Subroutine to move the
+LCD cursor right one space for the next input
+ return
+; ============================================================
+; CHARACTER TABLE
+; ============================================================
+psect data
+Nokia_Table:
+; Stores all the characters - each key has a block of 5 entries
+; same_key_count can serve as an index for each key
+db ' ','0',' ',' ',' '
+db '.',',','?','!','1'
+db 'A','B','C','2',' '
+db 'D','E','F','3',' '
+db 'G','H','I','4',' '
+db 'J','K','L','5',' '
+db 'M','N','O','6',' '
+db 'P','Q','R','S','7'
+db 'T','U','V','8',' '
+db 'W','X','Y','Z','9'
+align 2
+; ============================================================
+; NOKIA LOOKUP TABLE
+; ============================================================
+Nokia_Lookup: ; Character lookup
+routine
+
+; Calculate the starting index of the 5-character block in the table
+ movf last_key, W, A ; The ASCII value of the
+last key pressed is moved into W
+ addlw -'0' ; Convert from ASCII to
+numeric
+ mullw 5 ; Multiplies W by 5 -
+result goes into PRODL (low byte) and PRODH (high byte)
+; Add the same_key_count to find the exact character in the 5-
+character block
+
+ movf PRODL, W, A ; Move low byte of
+multiplication into W
+ addwf same_key_count, W, A ; Add same_key_count
+with W and place it back into W
+ movwf nokia_index, A ; Move W into
+nokia_index
+; Extract character from table
+; ---- Set base table address ----
+ movlw low highword(Nokia_Table)
+ movwf TBLPTRU, A
+ movlw high(Nokia_Table)
+ movwf TBLPTRH, A
+ movlw low(Nokia_Table)
+ movwf TBLPTRL, A
+; ---- Add index ----
+ movf nokia_index, W, A
+ addwf TBLPTRL, F, A
+; ---- Read table ----
+ tblrd* ; Moves the ASCII value
+of the selected character into TABLAT
+ movf TABLAT, W, A ; Moves TABLAT to W,
+which now has the selected ASCII character
+ return
+end

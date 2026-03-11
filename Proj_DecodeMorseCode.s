@@ -88,24 +88,25 @@ NextSymbol:
     goto    DecodeLoop
     
     movlw   low(morse_table)
-    movwf   FSR0L, A
+    movwf   TBLPTRL, A
     movlw   high(morse_table)
-    movwf   FSR0H, A
-    
+    movwf   TBLPTRH, A
+    movlw   low highword(morse_table)
+    movwf   TBLPTRU, A
+
     movf    tree_index, W, A
-    addwf   FSR0L, F, A
+    addwf   TBLPTRL, F, A
     btfsc   STATUS, 0, A
-    incf    FSR0H, F, A
+    incf    TBLPTRH, F, A
+    btfsc   STATUS, 0, A
+    incf    TBLPTRU, F, A
     
-    
-    movf    INDF0, W, A
+    tblrd*
+    movf    TABLAT, W, A
     xorlw   '?'
     bz	    MorseError
     
-    movf    INDF0, W, A
-    call    LCDPrintDecoded
-    call    LCDClearLine2
-    
+    movf    TABLAT, W, A
     goto    ClearBuffer
 
 ClearBuffer:

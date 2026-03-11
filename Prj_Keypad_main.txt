@@ -1,0 +1,59 @@
+#include <xc.inc>
+; ============================================================
+; EXTERNAL MODULES
+; ============================================================
+extrn KeyPad_Init
+extrn Timer_Setup
+extrn Nokia_Init
+extrn Nokia_Run
+extrn LCD_Setup
+extrn clear_LCD
+extrn LCD_Send_Byte_D
+extrn Lock_Character
+extrn Timer_Interrupt
+
+extrn timeout_flag
+; ============================================================
+; RESET VECTOR
+; ============================================================
+psect resetVec,class=CODE,delta=2
+
+org 0x00
+goto start
+; ============================================================
+; INTERRUPT VECTOR
+; ============================================================
+psect intVec,class=CODE,delta=2
+
+org 0x08
+goto Timer_Interrupt
+; ============================================================
+; MAIN PROGRAM
+; ============================================================
+psect main_code,class=CODE
+;org 0x0100
+start:
+
+ call clear_LCD
+ call LCD_Setup
+ call KeyPad_Init
+ call Nokia_Init
+ call Timer_Setup
+
+main_loop:
+ ;movlw 'A'
+ call LCD_Send_Byte_D
+
+ ;call clear_LCD
+ call Nokia_Run
+
+ ; Check timeout flag
+ movf timeout_flag, W, A
+ bz no_timeout
+
+ call Lock_Character
+ clrf timeout_flag
+
+no_timeout:
+ goto main_loop
+end

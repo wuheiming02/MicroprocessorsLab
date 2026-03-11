@@ -1,7 +1,6 @@
 #include <xc.inc>
 
 extrn	TimerSetup, TimerInterrupt
-extrn	temp_symbol
 
 extrn   LCD_Send_Byte_D
 extrn	LCD_delay_ms
@@ -12,6 +11,7 @@ extrn	LCDPrintError
 extrn	LCDClearLine2
     
 global	DecodeLetter, StoreSymbol, ClearBuffer
+global	temp_symbol
 
 psect	udata_acs 
 bit_buffer:	ds 1
@@ -19,6 +19,7 @@ bit_length:	ds 1
 tree_index:	ds 1
 counter:	ds 1
 temp_bits:	ds 1
+temp_symbol:	ds 1
 alignment_counter:  ds 1
 
     
@@ -40,6 +41,9 @@ StoreSymbol:
     rlcf    bit_buffer, f, A
     
     movf    temp_symbol, W, A
+    call    LCDPrintSymbol
+    
+    movf    temp_symbol, W, A
     xorlw   '-'
     bnz	    StoreDot
     
@@ -47,7 +51,7 @@ StoreSymbol:
     
 StoreDot:
     incf    bit_length, F, A
-    call    LCDPrintSymbol
+    
     return
     
 DecodeLetter:
@@ -84,24 +88,25 @@ NextSymbol:
     goto    DecodeLoop
     
     movlw   low(morse_table)
-    movwf   FSR0L, A
+    movwf   TBLPTRL, A
     movlw   high(morse_table)
-    movwf   FSR0H, A
-    
+    movwf   TBLPTRH, A
+    movlw   low highword(morse_table)
+    movwf   TBLPTRU, A
+
     movf    tree_index, W, A
-    addwf   FSR0L, F, A
+    addwf   TBLPTRL, F, A
     btfsc   STATUS, 0, A
-    incf    FSR0H, F, A
+    incf    TBLPTRH, F, A
+    btfsc   STATUS, 0, A
+    incf    TBLPTRU, F, A
     
-    
-    movf    INDF0, W, A
+    tblrd*
+    movf    TABLAT, W, A
     xorlw   '?'
     bz	    MorseError
     
-    movf    INDF0, W, A
-    call    LCDPrintDecoded
-    call    LCDClearLine2
-    
+    movf    TABLAT, W, A
     goto    ClearBuffer
 
 ClearBuffer:
@@ -121,7 +126,7 @@ MorseError:
     call    LCD_delay_ms
     movlw   250
     call    LCD_delay_ms
-    
+
     call    LCDClearLine2
     
     return

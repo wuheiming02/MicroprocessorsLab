@@ -1,0 +1,129 @@
+#include <xc.inc>
+
+; ============================================================
+; Timer module for Nokia text entry
+;
+; Style notes:
+; - Uses the same public naming style as the Morse project:
+;     TimerSetup
+;     TimerInterrupt
+; - Uses a high-priority interrupt vector at 0x0008
+; - Returns using "retfie f" as requested
+; - Does not manually save WREG / STATUS / BSR
+;   because the fast return path restores the shadow registers
+;
+; Behaviour:
+; - Timer0 period = 250 ms at Fosc = 64 MHz
+; - While timer_running = 1:
+;       timer_counter increments on each interrupt
+; - timer_counter is clamped at 6
+; - Main code checks timer_counter == 6
+; ============================================================
+
+; ============================================================
+; External timing state from ReadNokiaMain.asm
+; ============================================================
+extrn   timer_counter
+extrn   timer_running
+
+; ============================================================
+; Public routines
+; ============================================================
+global  TimerSetup
+global  TimerInterrupt
+
+; ============================================================
+; Code section
+; ============================================================
+psect   timer_code, class=CODE
+
+; ============================================================
+; TimerSetup
+;
+; Fosc = 64 MHz
+; Instruction clock = Fosc / 4 = 16 MHz
+;
+; Prescaler = 1:256
+; Timer tick = 16 us
+;
+; Required interrupt period = 250 ms
+; 250 ms / 16 us = 15625 counts
+; preload = 65536 - 15625 = 49911 = 0xC2F7
+;
+; 6 interrupts = 1500 ms
+; ============================================================
+TimerSetup:
+        ; Reset software counter
+        clrf    timer_counter, A
+
+        ; Load Timer0 for 250 ms overflow
+        movlw   0xC2
+        movwf   TMR0H, A
+        movlw   0xF7
+        movwf   TMR0L, A
+
+        ; T0CON:
+        ; bit7 TMR0ON = 1   -> enable Timer0
+        ; bit6 T08BIT = 0   -> 16-bit timer mode
+        ; bit5 T0CS   = 0   -> internal instruction clock
+        ; bit3 PSA    = 0   -> prescaler assigned
+        ; bit2:0 T0PS = 111 -> prescaler 1:256
+        movlw   10000111B
+        movwf   T0CON, A
+
+        ; Enable interrupt priority levels so the high vector at 0x0008
+        ; is used together with retfie f
+        bsf     IPEN
+
+        ; Make Timer0 a high-priority interrupt source
+        bsf     TMR0IP
+
+        ; Clear pending flag, enable Timer0 interrupt, enable high-priority global interrupts
+        bcf     TMR0IF
+        bsf     TMR0IE
+        bsf     GIEH
+
+        return
+
+; ============================================================
+; TimerInterrupt
+;
+; Keep ISR responsibilities minimal:
+; - confirm Timer0 caused the interrupt
+; - clear flag
+; - reload Timer0 for next 250 ms period
+; - if timer_running == 1, increment timer_counter
+; - clamp timer_counter at 6
+;
+; Main code performs the actual lock decision.
+; ============================================================
+TimerInterrupt:
+        ; If this was not Timer0, just fast return
+        btfss   TMR0IF
+        retfie  f
+
+        ; Clear Timer0 interrupt flag first
+        bcf     TMR0IF
+
+        ; Reload Timer0 for next 250 ms period
+        movlw   0xC2
+        movwf   TMR0H, A
+        movlw   0xF7
+        movwf   TMR0L, A
+
+        ; Only count while timeout timing is active
+        movf    timer_running, W, A
+        bz      TimerDone
+
+        ; Clamp timer_counter at 6
+        movlw   6
+        cpfseq  timer_counter, A
+        bra     IncrementCounter
+        bra     TimerDone
+
+IncrementCounter:
+        incf    timer_counter, F, A
+
+TimerDone:
+        ; Fast return restores WREG / STATUS / BSR from shadow registers
+        retfie  f

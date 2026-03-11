@@ -1,0 +1,81 @@
+#include <xc.inc>
+global Timer_Setup, Timer_Interrupt
+global idle_timer, timeout_flag
+
+extrn Lock_Character
+extrn last_key
+
+psect udata_acs
+W_temp: ds 1
+STATUS_temp: ds 1
+BSR_temp: ds 1
+timer_counter: ds 1 ; Counts fast ISR ticks
+idle_timer: ds 1 ; Counts user idle time in 10ms units
+timeout_flag: ds 1
+
+psect dac_code, class=CODE
+
+Timer_Setup:
+ clrf timer_counter, A
+ clrf idle_timer, A
+ clrf timeout_flag, A
+ ; Load TMR0 for 10ms overflow
+ movlw 0xE7
+ movwf TMR0H, A
+ movlw 0xF6
+ movwf TMR0L, A
+ movlw 10000111B ; T0ON=1, 16-bit, prescaler 1:256
+ movwf T0CON, A
+ bcf TMR0IF ; Clear Interrupt flag
+ bsf TMR0IE ; Enable timer interrupt
+ bsf GIE ; Global interrupts
+
+ return
+Timer_Interrupt:
+ ; Save CPU context
+ movwf W_temp, A
+ movff STATUS, STATUS_temp, A
+ movff BSR, BSR_temp, A
+ ; Check Timer0 Interrupt
+ btfss TMR0IF
+ bra ISR_Exit
+ ; Reload Timer0
+ movlw 0xE7
+ movwf TMR0H, A
+ movlw 0xF6
+ movwf TMR0L, A
+ ; Increment fast counter
+ incf timer_counter, F, A
+ ; Every 15 ticks - 150 ms
+ movlw 15
+ cpfseq timer_counter, A
+ bra Not15
+Yes15:
+
+ clrf timer_counter, A
+ ; Increment idle_timer by 1 (10ms units)
+ incf idle_timer, F, A
+ ; Check if idle_timer reaches 10 (1.5s)
+ movlw 10
+ cpfseq idle_timer, A
+ bra ClearFlag
+
+ ; Check if a character is active
+ movf last_key, W, A
+ xorlw 0xFF
+ bz ClearFlag
+ ; Signal timeout to main loop
+ movlw 1
+ movwf timeout_flag, A
+
+ClearFlag:
+ clrf idle_timer, A
+Not15:
+ bcf TMR0IF
+
+ISR_Exit:
+ movff BSR_temp, BSR, A
+ movff STATUS_temp, STATUS, A
+ movf W_temp, W, A
+
+ retfie f

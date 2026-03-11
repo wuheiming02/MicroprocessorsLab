@@ -1,0 +1,254 @@
+#include <xc.inc>
+
+; ============================================================
+; Nokia LCD helper module
+;
+; This is written in the same style as MorseLCD.txt:
+; - keeps track of locked_count and shift_count
+; - uses line 2 base address + shift_count
+; - clears 32 spaces on line 2
+; - prints ERROR on line 2 at the shifted visible position
+; ============================================================
+
+; ============================================================
+; Public routines
+; ============================================================
+global  LCDNokia_Init
+global  LCDSetPreviewCursor
+global  LCDPrintPreview
+global  LCDLockCharacter
+global  LCDClearLine2
+global  LCDPrintError
+
+; ============================================================
+; Public variables
+; ============================================================
+global  locked_count
+global  shift_count
+global  line2_pos
+global  preview_char
+global  locked_char
+
+; ============================================================
+; External low-level LCD routines
+; ============================================================
+extrn   LCD_Send_Byte_D
+extrn   LCD_Send_Byte_I
+extrn   LCD_delay_x4us
+
+; ============================================================
+; Access-bank variables
+; ============================================================
+psect   udata_acs
+
+locked_count:   ds 1    ; Number of permanently locked chars on line 1
+shift_count:    ds 1    ; Number of left shifts applied after char 16
+line2_pos:      ds 1    ; Current line-2 symbol position (kept for style consistency)
+clear_counter:  ds 1    ; Used when clearing line 2
+preview_char:   ds 1    ; Current preview character
+locked_char:    ds 1    ; Character being locked
+
+; ============================================================
+; Code section
+; ============================================================
+psect   NokiaLCD, class=CODE
+
+; ============================================================
+; LCDNokia_Init
+; Reset LCD-side state for Nokia text entry
+; ============================================================
+LCDNokia_Init:
+        clrf    locked_count, A
+        clrf    shift_count, A
+        clrf    line2_pos, A
+        clrf    preview_char, A
+        clrf    locked_char, A
+
+        ; Clear line 2 on startup
+        call    LCDClearLine2
+        return
+
+; ============================================================
+; LCDSetPreviewCursor
+; Position the cursor for the current preview character
+;
+; Cases:
+; - locked_count 0..15:
+;     write at line1_base + locked_count
+; - locked_count 16..31:
+;     display has been shifted left incrementally, so the preview
+;     should remain at the visible right edge
+;     visible right edge = 0x8F + shift_count
+; ============================================================
+LCDSetPreviewCursor:
+        ; If locked_count > 15, use shifted right-edge position
+        movlw   16
+        cpfsgt  locked_count, A
+        bra     PreviewFirst16
+
+        movf    shift_count, W, A
+        addlw   0x8F
+        call    LCD_Send_Byte_I
+        movlw   10
+        call    LCD_delay_x4us
+        return
+
+PreviewFirst16:
+        movf    locked_count, W, A
+        addlw   0x80
+        call    LCD_Send_Byte_I
+        movlw   10
+        call    LCD_delay_x4us
+        return
+
+; ============================================================
+; LCDPrintPreview
+; Show the currently selected preview character
+; Does not permanently lock it yet
+; ============================================================
+LCDPrintPreview:
+        ; W contains preview character
+        movwf   preview_char, A
+
+        ; Move to preview location
+        call    LCDSetPreviewCursor
+
+        ; Print character
+        movf    preview_char, W, A
+        call    LCD_Send_Byte_D
+
+        ; Re-position cursor back to the preview location so the next
+        ; press overwrites the same spot
+        call    LCDSetPreviewCursor
+        return
+
+; ============================================================
+; LCDLockCharacter
+; Permanently write a character to line 1
+;
+; Behaviour:
+; - lock at current preview position
+; - increment locked_count
+; - after 16 locked chars, shift display left once per new lock
+; - after 32 locked chars, print ERROR on line 2
+; ============================================================
+LCDLockCharacter:
+        ; W contains character to lock
+        movwf   locked_char, A
+
+        ; If already full, just show ERROR
+        movlw   32
+        cpfseq  locked_count, A
+        bra     DoLock
+        call    LCDPrintError
+        return
+
+DoLock:
+        ; Move to current preview position
+        call    LCDSetPreviewCursor
+
+        ; Print locked character
+        movf    locked_char, W, A
+        call    LCD_Send_Byte_D
+
+        ; Increase the locked character count
+        incf    locked_count, F, A
+
+        ; After character 16, shift display left each time
+        movlw   16
+        cpfsgt  locked_count, A
+        bra     AfterShiftCheck
+
+        ; LCD command: shift display left
+        movlw   00011000B
+        call    LCD_Send_Byte_I
+        movlw   10
+        call    LCD_delay_x4us
+
+        ; Track the number of shifts in software
+        incf    shift_count, F, A
+
+AfterShiftCheck:
+        ; Keep line 2 clear unless displaying ERROR
+        call    LCDClearLine2
+
+        ; If exactly 32 locked chars, show ERROR on line 2
+        movlw   32
+        cpfseq  locked_count, A
+        return
+
+        call    LCDPrintError
+        return
+
+; ============================================================
+; LCDClearLine2
+; Clear 32 positions on logical line 2
+;
+; This follows the MorseLCD approach:
+; - start at 0x40 + 0x80
+; - clear 32 spaces
+; - reset line2_pos
+; - move cursor back to visible line-2 start adjusted by shift_count
+; ============================================================
+LCDClearLine2:
+        ; Go to logical line 2 base address
+        movlw   0x40
+        addlw   0x80
+        call    LCD_Send_Byte_I
+        movlw   10
+        call    LCD_delay_x4us
+
+        ; Clear 32 positions so the shifted display has no stale text
+        movlw   32
+        movwf   clear_counter, A
+
+ClearLoop:
+        movlw   ' '
+        call    LCD_Send_Byte_D
+        decfsz  clear_counter, F, A
+        bra     ClearLoop
+
+        ; Reset logical line-2 position tracker
+        clrf    line2_pos, A
+
+        ; Put cursor at visible line-2 start after shifting
+        movlw   0x40
+        addlw   0x80
+        addwf   shift_count, W, A
+        call    LCD_Send_Byte_I
+        movlw   10
+        call    LCD_delay_x4us
+        return
+
+; ============================================================
+; LCDPrintError
+; Print "ERROR" on line 2 at the shifted visible start
+; Same addressing idea as MorseLCD
+; ============================================================
+LCDPrintError:
+        ; Clear line 2 first
+        call    LCDClearLine2
+
+        ; Cursor = line2_base + shift_count
+        movlw   0x40
+        addlw   0x80
+        addwf   shift_count, W, A
+        call    LCD_Send_Byte_I
+        movlw   10
+        call    LCD_delay_x4us
+
+        ; Print ERROR
+        movlw   'E'
+        call    LCD_Send_Byte_D
+        movlw   'R'
+        call    LCD_Send_Byte_D
+        movlw   'R'
+        call    LCD_Send_Byte_D
+        movlw   'O'
+        call    LCD_Send_Byte_D
+        movlw   'R'
+        call    LCD_Send_Byte_D
+
+        return
+
+end

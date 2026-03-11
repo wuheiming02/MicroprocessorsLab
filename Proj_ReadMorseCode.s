@@ -50,10 +50,7 @@ start:
 	clrf	decoded_count, A
 	clrf	shift_count, A
 	clrf	line2_pos, A
-	clrf	decoded_char
-	
-	clrf	TRISD, A
-	clrf	LATD, A
+	clrf	decoded_char, A
 	
 	call    LCD_Setup
 	call    clear_LCD
@@ -61,7 +58,6 @@ start:
 	call    KeyPad_Init
 	
 	call	ClearBuffer
-	
 	
 SetupWaitLoop:
 	call	KeyPad_Read
@@ -122,11 +118,7 @@ ReleaseFinished:
 	
 DecodeChar:
 	call	DecodeLetter
-	
-	movff	decoded_char, LATD
-	movlw	250
-	call	LCD_delay_ms
-	
+	call    LCDPrintDecoded
 	call	LCDClearLine2
 	bra	ResetTimer
 	
@@ -161,7 +153,8 @@ CheckRelease:
 	bra	MainLoop
 	
 	call	DecodeLetter
-	call	LCDPrintDecoded
+	call    LCDPrintDecoded
+	call    LCDClearLine2
 	movlw	' '
 	call	LCDPrintDecoded
 	
