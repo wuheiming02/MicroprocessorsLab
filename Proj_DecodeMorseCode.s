@@ -125,6 +125,8 @@ MorseError:
 
     call    LCDClearLine2
     
+    movlw   '?'
+    
     return
     
 AlignBits:

@@ -29,7 +29,7 @@ LCDPrintDecoded:
     movf    decoded_char, W, A
     call    LCD_Send_Byte_D
 
-    movlw   00010100B   
+    movlw   00010000B   
     call    LCD_Send_Byte_I
     movlw   10
     call    LCD_delay_x4us
@@ -42,7 +42,7 @@ ShiftCursorRight:
     movlw   10
     call    LCD_delay_x4us
     
-    movlw   17
+    movlw   16
     cpfslt  lock_counter, A
     call    ShiftDisplayRight    
     

@@ -125,6 +125,7 @@ DecodeChar:
 	xorlw	'?'
 	bz	InvalidMorse
 	
+	movf	decoded_char, W, A
 	call	PrintChar
 	bra	ResetTimer
 	
@@ -175,6 +176,7 @@ CheckRelease:
 	xorlw	'?'
 	bz	InvalidMorseWait
 	
+	movf	decoded_char, W, A
 	call	PrintChar
 	movlw	' '
 	call	LCDPrintDecoded

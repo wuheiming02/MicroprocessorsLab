@@ -58,18 +58,18 @@ start:
 SetupWaitLoop:
 	call	KeyPad_Read
 	
-	movwf	current_key, A
+	movwf	last_key, A
 	
 EntryCheckHigh:
 	movlw	'9'
-	cpfsgt	current_key, A
+	cpfsgt	last_key, A
 	bra	EntryCheckLow
 	
 	bra	SetupWaitLoop
 	
 EntryCheckLow:
 	movlw	'0'
-	cpfslt	current_key, A
+	cpfslt	last_key, A
 	bra	MainLoop
 	
 	bra	SetupWaitLoop
@@ -127,9 +127,6 @@ CheckTimer:
 	bra	SetupWaitLoop
 	
 NumericKey:
-	movf	lock_counter, W, A
-	bz	SameKey
-    
 	movf	current_key, W, A
 	cpfseq	last_key, A
 	call	LockChar
