@@ -5,14 +5,16 @@ extrn	TimerSetup, TimerInterrupt
 extrn   KeyPad_Init, KeyPad_Read
 
 extrn   LCD_Setup
+extrn	LCD_Send_Byte_I
 extrn   LCD_Send_Byte_D
 extrn   clear_LCD
 extrn	LCD_delay_ms
+extrn	LCD_delay_x4us
 
 extrn	DecodeChar
     
 extrn	shift_counter
-extrn	LCDPrintDecoded, ShiftCursorRight, LCDPrintOverflow
+extrn	LCDPrintDecoded, ShiftCursorRight, LCDPrintOverflow, ShiftDisplayLeft
     
 global	timer_counter, lock_counter, key_counter, current_key
 
@@ -75,10 +77,6 @@ EntryCheckLow:
 	bra	SetupWaitLoop
 
 MainLoop:
-	movlw	32
-	cpfslt	lock_counter, A
-	bra	Overflow	
-    
 	call	KeyPad_Read
 	movwf	current_key, A
 	
@@ -88,9 +86,16 @@ MainLoop:
 	bra	KeyPressed
 	
 KeyReleased:
+	movf	last_key, W, A
+	bz	WaitLoop
+    
 	movff	last_key, current_key
 	clrf	current_state, A
 	bra	CheckState
+	
+WaitLoop:
+	clrf	last_state, A
+	bra	MainLoop
 	
 KeyPressed:
 	movlw	1
@@ -110,6 +115,14 @@ StateChange:
 	movff	current_state, last_state
 	movf	current_state, W, A
 	bz	ResetTimer
+	
+	movf	current_key, W, A
+	xorlw	'E'
+	bz	ExecE
+	
+	movlw	32
+	cpfslt	lock_counter, A
+	bra	Overflow
 	
 	bra	NumericKey
 	
@@ -170,6 +183,8 @@ SameKey:
         xorlw   '9'
         bz      Exec79
 	
+	bra	MainLoop
+	
 Exec0:
 	incf	key_counter, A
 	movlw	3
@@ -225,6 +240,7 @@ LockChar:
     
 	clrf	key_counter, A
 	clrf	timer_counter, A
+	clrf	last_key, A
 	incf	lock_counter, A
 	call	ShiftCursorRight
 	
@@ -240,6 +256,52 @@ ReadBufferChar:
 	movlw   0
 	addwfc  FSR0H, F, A
 	movf    INDF0, W, A
+	return
+	
+ExecE:
+	call	Efunc
+	goto	MainLoop
+	
+Efunc:
+	movf	key_counter, W, A
+	bz	EfuncLockedChar
+
+	movlw	' '
+	call	LCDPrintDecoded
+	
+	clrf	key_counter, A
+	clrf	last_key, A
+
+	return
+	
+EfuncLockedChar:
+	movf	lock_counter, W, A
+	bz	EfuncDone         
+
+	decf	lock_counter, F, A
+
+	lfsr    0, message_buffer
+	movf    lock_counter, W, A
+	addwf   FSR0L, F, A
+	movlw   0
+	addwfc  FSR0H, F, A
+	clrf    INDF0, A
+
+	movlw   00010000B
+	call    LCD_Send_Byte_I
+	movlw   10
+	call    LCD_delay_x4us
+
+	movlw	' '
+	call	LCDPrintDecoded
+
+	movlw	0
+	cpfseq	shift_counter, A
+	call	ShiftDisplayLeft
+
+EfuncDone:
+	clrf	key_counter, A
+	clrf	last_key, A
 	return
     
 	end	rst

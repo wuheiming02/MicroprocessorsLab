@@ -1,6 +1,6 @@
 #include <xc.inc>
 
-global	LCDPrintDecoded, ShiftCursorRight, LCDPrintOverflow
+global	LCDPrintDecoded, ShiftCursorRight, LCDPrintOverflow, ShiftDisplayLeft
 global	shift_counter
     
 extrn	LCD_Send_Byte_D
@@ -58,6 +58,15 @@ ShiftDisplayRight:
     
     return
     
+ShiftDisplayLeft:
+    movlw   00011100B	    
+    call    LCD_Send_Byte_I
+    movlw   10
+    call    LCD_delay_x4us
+    
+    decf    shift_counter, F, A
+    
+    return
     
 LCDClearLine2:
     movlw   0x40

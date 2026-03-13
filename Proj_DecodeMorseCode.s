@@ -11,7 +11,7 @@ extrn	LCDPrintError
 extrn	LCDClearLine2
     
 global	DecodeLetter, StoreSymbol, ClearBuffer, MorseError
-global	temp_symbol
+global	temp_symbol, bit_buffer, bit_length
 
 psect	udata_acs 
 bit_buffer:	ds 1

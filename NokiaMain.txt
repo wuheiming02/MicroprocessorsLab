@@ -47,7 +47,6 @@ start:
 	clrf	lock_counter, A
 	clrf	key_counter, A
 	clrf	decoded_char, A
-	clrf	message_buffer, A
 
 	clrf	shift_counter, A
 	
@@ -59,18 +58,18 @@ start:
 SetupWaitLoop:
 	call	KeyPad_Read
 	
-	movwf	current_key, A
+	movwf	last_key, A
 	
 EntryCheckHigh:
 	movlw	'9'
-	cpfsgt	current_key, A
+	cpfsgt	last_key, A
 	bra	EntryCheckLow
 	
 	bra	SetupWaitLoop
 	
 EntryCheckLow:
 	movlw	'0'
-	cpfslt	current_key, A
+	cpfslt	last_key, A
 	bra	MainLoop
 	
 	bra	SetupWaitLoop
@@ -125,12 +124,9 @@ CheckTimer:
 	bra	MainLoop
 	
 	call	LockChar
-	bra	MainLoop
+	bra	SetupWaitLoop
 	
 NumericKey:
-	movf	lock_counter, W, A
-	bz	SameKey
-    
 	movf	current_key, W, A
 	cpfseq	last_key, A
 	call	LockChar
@@ -218,6 +214,15 @@ DecodeKey:
 	bra	MainLoop
 
 LockChar:
+	lfsr    0, message_buffer
+	movf    lock_counter, W, A
+	addwf   FSR0L, F, A
+	movlw   0
+	addwfc  FSR0H, F, A
+
+	movf    decoded_char, W, A
+	movwf   INDF0, A
+    
 	clrf	key_counter, A
 	clrf	timer_counter, A
 	incf	lock_counter, A
@@ -228,5 +233,13 @@ LockChar:
 Overflow:
 	call	LCDPrintOverflow
 	bra	MainLoop
+	
+ReadBufferChar:
+	lfsr    0, message_buffer
+	addwf   FSR0L, F, A
+	movlw   0
+	addwfc  FSR0H, F, A
+	movf    INDF0, W, A
+	return
     
 	end	rst

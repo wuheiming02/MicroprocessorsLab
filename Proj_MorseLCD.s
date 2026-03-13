@@ -4,6 +4,7 @@ global	LCDPrintDecoded
 global	LCDPrintSymbol
 global	LCDPrintError
 global	LCDClearLine2
+global	LCDShiftDisplayLeft
     
 global	decoded_count
 global	shift_count
@@ -128,6 +129,16 @@ LCDPrintError:
     movlw 'R'
     call LCD_Send_Byte_D
 
+    return
+    
+LCDShiftDisplayLeft:
+    movlw   00011100B	    
+    call    LCD_Send_Byte_I
+    movlw   10
+    call    LCD_delay_x4us
+    
+    decf    shift_count, F, A
+    
     return
 
     
