@@ -22,6 +22,7 @@ extrn	LCDPrintError
 extrn	LCDClearLine2
 extrn	MorseError
 extrn	LCDShiftDisplayLeft
+extrn	LCDShiftDisplayRight
     
 extrn	decoded_count
 extrn	shift_count
@@ -170,7 +171,7 @@ MorseNoStateChange:
 	bz	CheckRelease
 	
 CheckPress:
-	decf	bit_length, F ,A
+	;decf	bit_length, F ,A
 	movlw	6
 	cpfsgt	timer_counter, A
 	bra	MainLoop
@@ -204,7 +205,7 @@ CheckRelease:
 	
 WaitPress:
 	call	KeyPad_Read
-	xorlw	'C'
+	xorlw	'5'
 	bnz	WaitPress
 	call	LCDClearLine2
 	bra	ResetTimer
@@ -232,56 +233,119 @@ ExecE:
 	call	Efunc
 	goto	MainLoop
 	
+;Efunc:
+;	movf	bit_length, W, A
+;	bz	EfuncLine1
+;	
+;	bcf	STATUS, 0, A
+;	rrcf	bit_buffer, F, A
+;	decf	line2_pos, F, A
+;	decf	bit_length, F, A
+;	
+;	movlw	0x40
+;	addlw	0x80
+;	addwf	shift_count, W, A
+;	addwf	line2_pos, W, A
+;	call	LCD_Send_Byte_I
+;	movlw	10
+;	call	LCD_delay_x4us
+;	
+;	movlw	' '
+;	call	LCD_Send_Byte_D
+;	
+;	return
+;	
+;EfuncLine1:
+;	movlw	0
+;	cpfseq	decoded_count, A
+;	bra	EfuncLine1Continue
+;	
+;	return
+;    
+;EfuncLine1Continue:   
+;	decf	decoded_count, F, A
+;    
+;	movlw	0x80
+;	addwf	decoded_count, W, A
+;	call	LCD_Send_Byte_I
+;	movlw	10
+;	call	LCD_delay_x4us
+;	
+;	movlw	' '
+;	call	LCD_Send_Byte_D
+;	
+;	movlw   00010000B   
+;	call    LCD_Send_Byte_I
+;	movlw   10
+;	call    LCD_delay_x4us
+;	
+;	movlw	0
+;	cpfseq	shift_count, A
+;	call	LCDShiftDisplayLeft
+;	
+;	return
+	
+	
 Efunc:
-	movf	bit_length, W, A
-	bz	EfuncLine1
-	
-	bcf	STATUS, 0, A
-	rrcf	bit_buffer, F, A
-	decf	line2_pos, F, A
-	decf	bit_length, F, A
-	
-	movlw	0x40
-	addlw	0x80
-	addwf	shift_count, W, A
-	addwf	line2_pos, W, A
-	call	LCD_Send_Byte_I
-	movlw	10
-	call	LCD_delay_x4us
-	
-	movlw	' '
-	call	LCD_Send_Byte_D
-	
-	return
-	
-EfuncLine1:
-	movlw	0
-	cpfseq	decoded_count, A
-	bra	EfuncLine1Continue
-	
-	return
-    
-EfuncLine1Continue:   
-	decf	decoded_count, F, A
-    
-	movlw	0x80
-	addwf	decoded_count, W, A
-	call	LCD_Send_Byte_I
-	movlw	10
-	call	LCD_delay_x4us
-	
-	movlw	' '
-	call	LCD_Send_Byte_D
-	
-	movlw   00010000B   
+	movf    bit_length, W, A
+	bz      EfuncLine1
+
+	bcf     STATUS, 0, A
+	rrcf    bit_buffer, F, A
+
+        decf    bit_length, F, A
+	decf    line2_pos, F, A
+
+        movlw   0x40
+	addlw   0x80
+	addwf   shift_count, W, A
+	addwf   line2_pos, W, A
 	call    LCD_Send_Byte_I
 	movlw   10
 	call    LCD_delay_x4us
-	
-	movlw	0
-	cpfseq	shift_count, A
-	call	LCDShiftDisplayLeft
-	
+
+	movlw   ' '
+	call    LCD_Send_Byte_D
+
+	movlw   0x40
+	addlw   0x80
+	addwf   shift_count, W, A
+	addwf   line2_pos, W, A
+	call    LCD_Send_Byte_I
+	movlw   10
+	call    LCD_delay_x4us
+
 	return
+
+EfuncLine1:
+    movf    decoded_count, W, A
+    bz      EfuncDone
+
+    movf    shift_count, W, A
+    bz      EfuncLine1NoShiftUndo
+
+    call    LCDShiftDisplayRight
+    decf    shift_count, F, A
+
+EfuncLine1NoShiftUndo:
+    decf    decoded_count, F, A
+
+    movlw   0x80
+    addwf   decoded_count, W, A
+    call    LCD_Send_Byte_I
+    movlw   10
+    call    LCD_delay_x4us
+
+    movlw   ' '
+    call    LCD_Send_Byte_D
+
+    movlw   0x80
+    addwf   decoded_count, W, A
+    call    LCD_Send_Byte_I
+    movlw   10
+    call    LCD_delay_x4us
+
+EfuncDone:
+    return
 	
 	end	rst
