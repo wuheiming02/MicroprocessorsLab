@@ -5,14 +5,17 @@ extrn	TimerSetup, TimerInterrupt
 extrn   KeyPad_Init, KeyPad_Read
 
 extrn   LCD_Setup
+extrn	LCD_Send_Byte_I
 extrn   LCD_Send_Byte_D
 extrn   clear_LCD
 extrn	LCD_delay_ms
-    
+extrn	LCD_delay_x4us
+
 extrn	DecodeLetter
 extrn	StoreSymbol
 extrn	ClearBuffer
 extrn	bit_buffer
+extrn	bit_length
     
 extrn	LCDPrintDecoded
 extrn	LCDPrintError
@@ -30,6 +33,7 @@ psect	udata_acs
 timer_counter:	ds 1 ; track amount of time pressed or released
 current_state:	ds 1 ; whether the button was pressed or not
 last_state:	ds 1 ; whether the button was pressed or not in the last check
+current_key:	ds 1
 decoded_char:	ds 1
 
     
@@ -47,6 +51,7 @@ start:
 	clrf	timer_counter, A
 	clrf	current_state, A
 	clrf	last_state, A
+	clrf	current_key, A
 	
 	clrf	decoded_count, A
 	clrf	shift_count, A
@@ -62,38 +67,52 @@ start:
 	
 SetupWaitLoop:
 	call	KeyPad_Read
-	
+		
 	xorlw	'5'
 	bnz	SetupWaitLoop
+	
 	call    TimerSetup
+	bra	MainLoop
 
 MainLoop:
 	call	KeyPad_Read
+	movwf	current_key, A
 	
+	xorlw	0xFF
+	bz	KeyReleased
+	
+	movf	current_key, W, A
 	xorlw	'5'
-	bz	KeyPressed
+	bz	MorseKeyPressed
+	
+	bra	SpecialFunctions
 	
 KeyReleased:
 	clrf	current_state, A
-	bra	CheckState
 	
-KeyPressed:
+	movf	bit_length, W, A
+	bz	ResetTimer
+	
+	bnz	MorseCheckState
+	
+MorseKeyPressed:
 	movlw	1
 	movwf	current_state, A
+	bra	MorseCheckState
 	
-CheckState:
+MorseCheckState:
 	movf	current_state, W, A
 	cpfseq	last_state, A
-	bra	StateChange
-	bra	NoStateChange
+	bra	MorseStateChange
+	bra	MorseNoStateChange
 	
-StateChange:
+MorseStateChange:   
 	movf	last_state, W, A
-	bz	ReleaseFinished
+	bz	MorseReleaseFinished
 	
-	bra	PressFinished
+	bra	MorsePressFinished
 	
-PressFinished:
+MorsePressFinished:
 	movlw	2
 	cpfsgt	timer_counter, A
 	bra	StoreDot
@@ -110,7 +129,8 @@ StoreDash:
 	call	StoreSymbol
 	bra	ResetTimer	
 
-ReleaseFinished:
+MorseReleaseFinished:
+	incf	bit_length, F, A
 	movlw	2
 	cpfsgt	timer_counter, A
 	bra	ResetTimer
@@ -145,21 +165,22 @@ ResetTimer:
 	movff	current_state, last_state
 	bra	MainLoop	
 	
-NoStateChange:
+MorseNoStateChange:
 	movf	current_state, W, A
 	bz	CheckRelease
 	
 CheckPress:
+	decf	bit_length, F ,A
 	movlw	6
 	cpfsgt	timer_counter, A
 	bra	MainLoop
 	
-	call	LCDPrintError
+	call	MorseError
 	call	ClearBuffer
 	
 WaitRelease:
 	call	KeyPad_Read
-	xorlw	'5'
+	xorlw	'C'
 	bz	WaitRelease
 	call	LCDClearLine2
 	bra	ResetTimer
@@ -183,7 +204,7 @@ CheckRelease:
 	
 WaitPress:
 	call	KeyPad_Read
-	xorlw	'5'
+	xorlw	'C'
 	bnz	WaitPress
 	call	LCDClearLine2
 	bra	ResetTimer
@@ -192,16 +213,33 @@ InvalidMorseWait:
 	call	MorseError
 	bra	WaitPress
 	
-	end	rst
+SpecialFunctions:
+	movlw	1
+	movwf	current_state, A
+	
+	movf	last_state, W, A
+	bnz	MainLoop
+	
+	movff	current_state, last_state
+	
+	movf	current_key, W, A
+	xorlw	'E'
+	bz	ExecE
+	
+	goto	MainLoop
+	
+ExecE:
+	call	Efunc
+	goto	MainLoop
 	
 Efunc:
-	movf	line2_pos, W, A
-	xorlw	0
+	movf	bit_length, W, A
 	bz	EfuncLine1
 	
 	bcf	STATUS, 0, A
 	rrcf	bit_buffer, F, A
 	decf	line2_pos, F, A
+	decf	bit_length, F, A
 	
 	movlw	0x40
 	addlw	0x80
@@ -224,10 +262,10 @@ EfuncLine1:
 	return
     
 EfuncLine1Continue:   
-	decf	decoded_count
+	decf	decoded_count, F, A
     
 	movlw	0x80
-	addwf	shift_count, W, A
+	addwf	decoded_count, W, A
 	call	LCD_Send_Byte_I
 	movlw	10
 	call	LCD_delay_x4us
@@ -241,7 +279,9 @@ EfuncLine1Continue:
 	call    LCD_delay_x4us
 	
 	movlw	0
-	cpfseq	shift_counter
+	cpfseq	shift_count, A
 	call	LCDShiftDisplayLeft
 	
 	return
+	
+	end	rst

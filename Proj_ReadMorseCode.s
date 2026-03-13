@@ -85,7 +85,7 @@ MainLoop:
 	xorlw	'5'
 	bz	MorseKeyPressed
 	
-	goto	SpecialFunctions
+	bra	SpecialFunctions
 	
 KeyReleased:
 	clrf	current_state, A
@@ -130,6 +130,7 @@ StoreDash:
 	bra	ResetTimer	
 
 MorseReleaseFinished:
+	incf	bit_length, F, A
 	movlw	2
 	cpfsgt	timer_counter, A
 	bra	ResetTimer
@@ -169,11 +170,12 @@ MorseNoStateChange:
 	bz	CheckRelease
 	
 CheckPress:
+	decf	bit_length, F ,A
 	movlw	6
 	cpfsgt	timer_counter, A
 	bra	MainLoop
 	
-	call	LCDPrintError
+	call	MorseError
 	call	ClearBuffer
 	
 WaitRelease:
@@ -232,7 +234,6 @@ ExecE:
 	
 Efunc:
 	movf	bit_length, W, A
-	xorlw	0
 	bz	EfuncLine1
 	
 	bcf	STATUS, 0, A

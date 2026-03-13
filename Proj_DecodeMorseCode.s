@@ -49,9 +49,7 @@ StoreSymbol:
     
     bsf	    bit_buffer, 0, A
     
-StoreDot:
-    incf    bit_length, F, A
-    
+StoreDot:    
     return
     
 DecodeLetter:

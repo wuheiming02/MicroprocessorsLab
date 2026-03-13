@@ -1,8 +1,18 @@
 #include <xc.inc>
 
+; UART unencrpted message send test: ;######
+; Encryption routine test: ;~~~~~~
+    
+    
 extrn	TimerSetup, TimerInterrupt
 
 extrn   KeyPad_Init, KeyPad_Read
+    
+extrn	UART_Setup		;######
+extrn	UART_Out_Plain		;######
+    
+extrn  Encrypt_Init		;~~~~~~
+extrn  Encrypt_Run		;~~~~~~
 
 extrn   LCD_Setup
 extrn	LCD_Send_Byte_I
@@ -16,7 +26,7 @@ extrn	DecodeChar
 extrn	shift_counter
 extrn	LCDPrintDecoded, ShiftCursorRight, LCDPrintOverflow, ShiftDisplayLeft
     
-global	timer_counter, lock_counter, key_counter, current_key
+global	timer_counter, lock_counter, key_counter, current_key, message_buffer
 
 psect	udata_acs
 timer_counter:	ds 1 
@@ -56,6 +66,26 @@ start:
 	call    clear_LCD
 	
 	call    KeyPad_Init
+	
+	call	UART_Setup			;######
+	
+;~~~~~~ 
+;-----Temporary Test: seed message_bugger with "HELLO"-----
+	
+;	movlw	'H'
+;	movf	message_buffer + 0, A
+;	movlw	'E'
+;	movf	message_buffer + 1, A
+;	movlw	'L'
+;	movf	message_buffer + 2, A
+;	movlw	'L'
+;	movf	message_buffer + 3, A
+;	movlw	'O'
+;	movf	message_buffer + 4, A
+;	movlw	5
+;	movwf	lock_counter, A
+	
+;-----End Temporary Test-----
 	
 SetupWaitLoop:
 	call	KeyPad_Read
@@ -140,10 +170,35 @@ CheckTimer:
 	bra	SetupWaitLoop
 	
 NumericKey:
+;	movf	current_key, W, A		;######
+;	xorlw	'A'				;######
+;	bz	SendPlaintext			;######
+;	
+;	movf	current_key, W, A		;~~~~~~
+;	xorlw	'B'				;~~~~~~
+;	bz	TestEncrypt			;~~~~~~
+;	
+;	movf	lock_counter, W, A		;######
+;	bz	SameKey				;######
+	
+	
+	movlw	'9'
+	cpfsgt	current_key, A
+	bra	EntryCheckLowNumeric
+	
+	bra	SameKey
+	
+EntryCheckLowNumeric:
+	movlw	'0'
+	addlw	-1
+	cpfsgt	current_key, A
+	bra	SameKey
+	
+	
+
 	movf	current_key, W, A
 	cpfseq	last_key, A
-	call	LockChar
-	
+	call	LockChar	
 	bra	SameKey
     
 SameKey:
@@ -183,6 +238,7 @@ SameKey:
         xorlw   '9'
         bz      Exec79
 	
+	clrf	last_key, A
 	bra	MainLoop
 	
 Exec0:
@@ -245,6 +301,23 @@ LockChar:
 	call	ShiftCursorRight
 	
 	return
+	
+;SendPlaintext:					;######
+;	movf    lock_counter, W, A
+;	bz	SendPlaintext_Go
+;	call	LockChar
+;	
+;SendPlaintext_Go:				;######
+;	call	UART_Out_Plain
+;	clrf	lock_counter, A
+;	clrf	key_counter, A
+;	clrf	timer_counter, A
+;	bra	SetupWaitLoop
+;	
+;TestEncrypt:					;~~~~~~
+;	call	Encrypt_Init
+;	call	Encrypt_Run
+;	bra	SetupWaitLoop
 	
 Overflow:
 	call	LCDPrintOverflow

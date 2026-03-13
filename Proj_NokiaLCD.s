@@ -1,6 +1,6 @@
 #include <xc.inc>
 
-global	LCDPrintDecoded, ShiftCursorRight, LCDPrintOverflow, ShiftDisplayLeft
+global	LCDPrintDecoded, ShiftCursorRight, LCDPrintOverflow, ShiftDisplayLeft, LCDClearLine2
 global	shift_counter
     
 extrn	LCD_Send_Byte_D

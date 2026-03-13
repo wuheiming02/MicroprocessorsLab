@@ -10,8 +10,8 @@ extrn	LCDPrintDecoded
 extrn	LCDPrintError
 extrn	LCDClearLine2
     
-global	DecodeLetter, StoreSymbol, ClearBuffer
-global	temp_symbol
+global	DecodeLetter, StoreSymbol, ClearBuffer, MorseError
+global	temp_symbol, bit_buffer, bit_length
 
 psect	udata_acs 
 bit_buffer:	ds 1
@@ -32,7 +32,7 @@ morse_table:
     db	    'B','X','C','Y','Z','Q','?','?'
     db	    '5','4','?','3','?','?','?','2'
     db	    '?','?','?','?','?','?','?','1'
-    db	    '?','?','?','?','?','?','?','?'
+    db	    '6','?','?','?','?','?','?','?'
     db	    '7','?','?','?','8','?','9','0'
 
 StoreSymbol:
@@ -49,9 +49,7 @@ StoreSymbol:
     
     bsf	    bit_buffer, 0, A
     
-StoreDot:
-    incf    bit_length, F, A
-    
+StoreDot:    
     return
     
 DecodeLetter:
@@ -103,10 +101,6 @@ NextSymbol:
     
     tblrd*
     movf    TABLAT, W, A
-    xorlw   '?'
-    bz	    MorseError
-    
-    movf    TABLAT, W, A
     goto    ClearBuffer
 
 ClearBuffer:
@@ -128,6 +122,8 @@ MorseError:
     call    LCD_delay_ms
 
     call    LCDClearLine2
+    
+    movlw   '?'
     
     return
     
