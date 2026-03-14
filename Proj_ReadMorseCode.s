@@ -1,35 +1,45 @@
 #include <xc.inc>
-
+    
+; from Proj_Timer
 extrn	TimerSetup, TimerInterrupt
 
+; from KeyPad
 extrn   KeyPad_Init, KeyPad_Read
 
+; from LCD
 extrn   LCD_Setup
+extrn	LCD_Send_Byte_I
 extrn   LCD_Send_Byte_D
 extrn   clear_LCD
+extrn	LCD_delay_x4us
 extrn	LCD_delay_ms
-    
+
+; from DecodeMorseCode
 extrn	DecodeLetter
 extrn	StoreSymbol
 extrn	ClearBuffer
+
+extrn	bit_buffer
+extrn	bit_length
     
+; from MorseLCD    
 extrn	LCDPrintDecoded
 extrn	LCDPrintError
 extrn	LCDClearLine2
 extrn	MorseError
-    
-extrn	decoded_count
-extrn	shift_count
-extrn	line2_pos
+
+extrn	decoded_counter
+extrn	shift_counter
     
 global	timer_counter, decoded_char
 
 psect	udata_acs
 timer_counter:	ds 1 ; track amount of time pressed or released
-key_state:	ds 1 ; whether the button was pressed or not
-last_key_state:	ds 1 ; whether the button was pressed or not in the last check
-morse_index:	ds 1 
-decoded_char:	ds 1
+current_state:	ds 1 ; whether the button was pressed or not
+last_state:	ds 1 ; whether the button was pressed or not in the last check
+current_key:	ds 1 ; the key being pressed
+decoded_char:	ds 1 ; decoded character
+    
 
     
 psect	code, abs
@@ -44,13 +54,11 @@ int_hi:
 	
 start:
 	clrf	timer_counter, A
-	clrf	key_state, A
-	clrf	last_key_state, A
-	clrf	morse_index, A
+	clrf	current_state, A
+	clrf	last_state, A
 	
-	clrf	decoded_count, A
-	clrf	shift_count, A
-	clrf	line2_pos, A
+	clrf	decoded_counter, A
+	clrf	shift_counter, A
 	clrf	decoded_char, A
 	
 	call    LCD_Setup
@@ -60,136 +68,147 @@ start:
 	
 	call	ClearBuffer
 	
-SetupWaitLoop:
+SetupWaitLoop: 
+; program starts when '5' is pressed to start Morse code input
 	call	KeyPad_Read
 	
 	xorlw	'5'
 	bnz	SetupWaitLoop
+	
 	call    TimerSetup
+	bra	MainLoop
 
-MainLoop:
+MainLoop: 
 	call	KeyPad_Read
 	
-	xorlw	'5'
+	xorlw	'5' ; if '5' is pressed, branch to KeyPressed
 	bz	KeyPressed
 	
-KeyReleased:
-	clrf	key_state, A
-	bra	CheckState
+	bra	KeyReleased ; else branch to KeyReleased
+	
+KeyReleased: 
+	clrf	current_state, A ; set current_state to 0
+	bra	CheckState ; check if a key was pressed just before this
 	
 KeyPressed:
 	movlw	1
-	movwf	key_state, A
+	movwf	current_state, A ; set current_state to 1
+	bra	CheckState ; check if a key was pressed just before this
 	
 CheckState:
-	movf	key_state, W, A
-	cpfseq	last_key_state, A
-	bra	StateChange
-	bra	NoStateChange
+	movf	current_state, W, A ; compare current_state with last_state
+	cpfseq	last_state, A
+	bra	StateChange ; branch to StateChange if there is a state change
+	bra	NoStateChange ; branch to NoStateChange if there is no change
 	
 StateChange:
-	movf	last_key_state, W, A
-	bz	ReleaseFinished
+	movf	last_state, W, A ; check if a key was pressed before this
+	bz	ReleaseFinished ; branch to ReleasedFinished if there was no key pressed before
 	
-	bra	PressFinished
+	bra	PressFinished ; else branch to PressFinished
 	
 PressFinished:
-	movlw	3
-	cpfsgt	timer_counter, A
-	bra	StoreDot
+	movlw	2 ; if '5' was pressed for less than 3 dits
+	cpfsgt	timer_counter, A 
+	bra	StoreDot ; interpret as a got
 	
-	bra	StoreDash
+	bra	StoreDash ; else interpret as a dash
 	
 StoreDot:
-	movlw	'.'
+	movlw	'.' ; store a dot
 	call	StoreSymbol
-	bra	ResetTimer
+	bra	ResetTimer ; reset timer
 	
 StoreDash:
-	movlw	'-'
+	movlw	'-' ; store a dash
 	call	StoreSymbol
-	bra	ResetTimer	
+	bra	ResetTimer ; reset timer
 
 ReleaseFinished:
-	movlw	3
+	movlw	2 ; if a key was released for less than 3 dits
 	cpfsgt	timer_counter, A
-	bra	ResetTimer
+	bra	ResetTimer ; reset the timer
 	
-	bra	DecodeChar
+	bra	DecodeChar ; decode the character in Morse code
 	
 DecodeChar:
-	call	DecodeLetter
-	movwf	decoded_char, A
+	call	DecodeLetter ; decode the character stored in bit_buffer
+	movwf	decoded_char, A ; place the decoded character in decoded_char
 	
-	movf	decoded_char, W, A
+	movf	decoded_char, W, A ; check for invalid input
 	xorlw	'?'
-	bz	InvalidMorse
+	bz	InvalidMorse ; if yes branch to InvalidMorse
 	
-	movf	decoded_char, W, A
+	movf	decoded_char, W, A ; display character on LCD
 	call	PrintChar
-	bra	ResetTimer
+	bra	ResetTimer ; reset timer
 	
 InvalidMorse:
-	call	MorseError
-	bra	ResetTimer
+	call	MorseError ; display error message
+	bra	ResetTimer ; reset timer
 	
 PrintChar:
-	call    LCDPrintDecoded
-	call	LCDClearLine2
+	call    LCDPrintDecoded ; display valid character on line 1 of LCD
+	call	LCDClearLine2 ; clear line 2 on LCD
 	
 	return
 	
 ResetTimer:
-	clrf	timer_counter, A
+	clrf	timer_counter, A ; clear timer_counter
 	
-	movff	key_state, last_key_state
-	bra	MainLoop	
+	movff	current_state, last_state ; set last_state as current_state
+	bra	MainLoop ; branch back to MainLoop
 	
 NoStateChange:
-	movf	key_state, W, A
-	bz	CheckRelease
+	movf	current_state, W, A ; check if it was a continuous press or release
+	bz	CheckRelease ; check no key was pressed for too long
+	
+	bra	CheckPress ; check if '5' was pressed for too long
 	
 CheckPress:
-	movlw	7
+	movlw	6 ; if '5' was pressed for less than 7 dits
 	cpfsgt	timer_counter, A
-	bra	MainLoop
+	bra	MainLoop ; if yes nothing happens, branch back to MainLoop
 	
-	call	LCDPrintError
-	call	ClearBuffer
+	call	LCDPrintError ; else display error message on LCD line 2
+	call	ClearBuffer ; clear bit_buffer and bit_length to restart Morse input
 	
 WaitRelease:
-	call	KeyPad_Read
+	call	KeyPad_Read ; press '5' to clear error message
 	xorlw	'5'
 	bz	WaitRelease
+	
 	call	LCDClearLine2
-	bra	ResetTimer
+	bra	ResetTimer ; reset timer
 	
 CheckRelease:
-	movlw	7
+	movlw	6 ; check if no key was pressed for less than 7 dits
 	cpfsgt	timer_counter, A
-	bra	MainLoop
+	bra	MainLoop ; if yes nothing happens, branch back to MainLoop
 	
-	call	DecodeLetter
+	call	DecodeLetter ; if no decode the letter
 	movwf	decoded_char, A
 	
 	movf	decoded_char, W, A
 	xorlw	'?'
-	bz	InvalidMorseWait
+	bz	InvalidMorseWait ; branch to InvalidMorseWait if '?'
 	
 	movf	decoded_char, W, A
-	call	PrintChar
+	call	PrintChar ; else display the character and a space bar
 	movlw	' '
 	call	LCDPrintDecoded
 	
 WaitPress:
-	call	KeyPad_Read
+	call	KeyPad_Read ; press '5' to continue input
 	xorlw	'5'
 	bnz	WaitPress
-	call	LCDClearLine2
-	bra	ResetTimer
+	
+	call	LCDClearLine2 ; clear line 2
+	bra	ResetTimer ; reset timer
 	
 InvalidMorseWait:
-	call	MorseError
-	bra	WaitPress
+	call	LCDPrintError ; else display error message on LCD line 2
+	call	ClearBuffer ; clear bit_buffer and bit_length to restart Morse input
+	bra	WaitPress ; branch to WaitPress
 	
 	end	rst
