@@ -1,35 +1,37 @@
 #include <xc.inc>
 
-global	LCDPrintDecoded, ShiftCursorRight, LCDPrintOverflow
-global	shift_counter
-    
+; from LCD
 extrn	LCD_Send_Byte_D
 extrn	LCD_Send_Byte_I
 extrn	LCD_delay_ms
 extrn	LCD_delay_x4us
-    
+
+; from ReadNokia
 extrn	lock_counter
+    
+global	LCDPrintDecoded, ShiftCursorRight, LCDPrintOverflow
+global	shift_counter
 
 psect	udata_acs
-decoded_char:	ds 1
-shift_counter:	ds 1
-clear_counter:	ds 1
+decoded_char:	ds 1 ; the decoded character
+shift_counter:	ds 1 ; number of times the display is shifted
+clear_counter:	ds 1 ; number of spaces to clear on line 2
     
 psect	NokiaLCD, class=CODE
 
 LCDPrintDecoded:
-    movwf   decoded_char, A
+    movwf   decoded_char, A ; place character in decoded_char
     
-    movlw   0x80
+    movlw   0x80 ; move cursor to line 1[lock_counter]
     addwf   lock_counter, W, A
     call    LCD_Send_Byte_I
     movlw   10
     call    LCD_delay_x4us
     
-    movf    decoded_char, W, A
+    movf    decoded_char, W, A ; display character
     call    LCD_Send_Byte_D
 
-    movlw   00010000B   
+    movlw   00010000B ; shift cursor left by 1
     call    LCD_Send_Byte_I
     movlw   10
     call    LCD_delay_x4us
@@ -37,40 +39,39 @@ LCDPrintDecoded:
     return
     
 ShiftCursorRight:
-    movlw   00010100B   
+    movlw   00010100B ; shift cursor right by 1
     call    LCD_Send_Byte_I
     movlw   10
     call    LCD_delay_x4us
     
-    movlw   16
+    movlw   16 ; if there are more than 16 characters stored in message buffer
     cpfslt  lock_counter, A
-    call    ShiftDisplayRight    
+    call    ShiftDisplayRight ; shift display by 1
     
     return
     
 ShiftDisplayRight:
-    movlw   00011000B	    
+    movlw   00011000B ; shift display by 1	    
     call    LCD_Send_Byte_I
     movlw   10
     call    LCD_delay_x4us
     
-    incf    shift_counter, F, A
+    incf    shift_counter, F, A ; increment shift_counter
     
     return
     
-    
 LCDClearLine2:
-    movlw   0x40
+    movlw   0x40 ; move cursor to line 2
     addlw   0x80
     call    LCD_Send_Byte_I
     movlw   10
     call    LCD_delay_x4us
     
-    movlw   32
+    movlw   32 ; set clear_counter to 32
     movwf   clear_counter, A
     
 ClearLoop:
-    movlw   ' '
+    movlw   ' ' ; replace space with ' ' 32 times
     call    LCD_Send_Byte_D
     decfsz  clear_counter, F, A
     bra	    ClearLoop
@@ -78,16 +79,16 @@ ClearLoop:
     return
     
 LCDPrintOverflow:
-    call    LCDClearLine2
+    call    LCDClearLine2 ; clear line 2 of LCD
     
-    movlw   0x40
+    movlw   0x40 ; move the cursor to line 2
     addlw   0x80
-    addwf   shift_counter, W, A
+    addwf   shift_counter, W, A ; align cursor with left most edge with display after shifting
     call    LCD_Send_Byte_I
     movlw   10
     call    LCD_delay_x4us
     
-    movlw 'O'
+    movlw 'O' ; print 'Overflow' on line 2
     call LCD_Send_Byte_D
     movlw 'V'
     call LCD_Send_Byte_D
@@ -113,7 +114,7 @@ LCDPrintOverflow:
     movlw   250
     call    LCD_delay_ms
 
-    call    LCDClearLine2
+    call    LCDClearLine2 ; clear LCD line 2 after 1 second
     
     return
 

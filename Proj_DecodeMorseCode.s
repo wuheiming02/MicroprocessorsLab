@@ -101,10 +101,9 @@ NextSymbol:
 
     movf    tree_index, W, A
     addwf   TBLPTRL, F, A
-    btfsc   STATUS, 0, A
-    incf    TBLPTRH, F, A
-    btfsc   STATUS, 0, A
-    incf    TBLPTRU, F, A
+    movlw   0
+    addwfc  TBLPTRH, F, A
+    addwfc  TBLPTRU, F, A
     
     tblrd*
     movf    TABLAT, W, A ; move decoded character to W

@@ -25,6 +25,7 @@ extrn	bit_length
 ; from MorseLCD    
 extrn	LCDPrintDecoded
 extrn	LCDPrintError
+extrn	LCDPrintOverflow
 extrn	LCDClearLine2
 extrn	MorseError
 
@@ -35,8 +36,8 @@ global	timer_counter, decoded_char
 
 psect	udata_acs
 timer_counter:	ds 1 ; track amount of time pressed or released
-current_state:	ds 1 ; whether the button was pressed or not
-last_state:	ds 1 ; whether the button was pressed or not in the last check
+current_state:	ds 1 ; whether a button is pressed or not
+last_state:	ds 1 ; whether a button was pressed or not in the last check
 current_key:	ds 1 ; the key being pressed
 decoded_char:	ds 1 ; decoded character
     
@@ -56,6 +57,7 @@ start:
 	clrf	timer_counter, A
 	clrf	current_state, A
 	clrf	last_state, A
+	clrf	current_key, A
 	
 	clrf	decoded_counter, A
 	clrf	shift_counter, A
@@ -71,7 +73,13 @@ start:
 SetupWaitLoop: 
 ; program starts when '5' is pressed to start Morse code input
 	call	KeyPad_Read
+	movwf	current_key, A
 	
+	movf	current_key, W, A ; restarts program if 'F' is pressed
+	xorlw	'F'
+	bz	start
+	
+	movf	current_key, W, A
 	xorlw	'5'
 	bnz	SetupWaitLoop
 	
@@ -79,10 +87,16 @@ SetupWaitLoop:
 	bra	MainLoop
 
 MainLoop: 
+	movf	decoded_counter, W, A ; check if there are already 32 decoded characters
+	xorlw	32
+	bz	Overflow ; if yes branch to Overflow
+    
 	call	KeyPad_Read
+	movwf	current_key, A ; store key in current_key
 	
-	xorlw	'5' ; if '5' is pressed, branch to KeyPressed
-	bz	KeyPressed
+	movf	current_key, W, A ; if a key is pressed
+	xorlw	0xFF 
+	bnz	KeyPressed ; branch to KeyPressed
 	
 	bra	KeyReleased ; else branch to KeyReleased
 	
@@ -93,7 +107,12 @@ KeyReleased:
 KeyPressed:
 	movlw	1
 	movwf	current_state, A ; set current_state to 1
-	bra	CheckState ; check if a key was pressed just before this
+	
+	movf	current_key, W, A ; only proceed if '5' was pressed
+	xorlw	'5'
+	bz	CheckState ; check if a key was pressed just before this
+	
+	bra	ResetTimer ; reset timer
 	
 CheckState:
 	movf	current_state, W, A ; compare current_state with last_state
@@ -210,5 +229,19 @@ InvalidMorseWait:
 	call	LCDPrintError ; else display error message on LCD line 2
 	call	ClearBuffer ; clear bit_buffer and bit_length to restart Morse input
 	bra	WaitPress ; branch to WaitPress
+	
+Overflow:
+	call	LCDPrintOverflow ; displays 'OVERFLOW' on LCD line 2
+	
+OverflowWaitLoop:
+	call	KeyPad_Read ; only break loop if specific keys are pressed
+	movwf	current_key
+	
+	movf	current_key, W, A
+	xorlw	'F'
+	bz	start ; restarts program
+	; bz	ExecF
+	
+	bra	OverflowWaitLoop
 	
 	end	rst
