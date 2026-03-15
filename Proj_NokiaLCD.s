@@ -9,18 +9,17 @@ extrn	LCD_delay_x4us
 ; from ReadNokia
 extrn	lock_counter
     
+; from HomePage
+extrn	shift_counter
+extrn	clear_counter
+extrn	LCD_decoded_char
+    
 global	LCDPrintDecoded, ShiftCursorRight, LCDPrintOverflow
-global	shift_counter
-
-psect	udata_acs
-decoded_char:	ds 1 ; the decoded character
-shift_counter:	ds 1 ; number of times the display is shifted
-clear_counter:	ds 1 ; number of spaces to clear on line 2
     
 psect	NokiaLCD, class=CODE
 
 LCDPrintDecoded:
-    movwf   decoded_char, A ; place character in decoded_char
+    movwf   LCD_decoded_char, A ; place character in LCD_decoded_char
     
     movlw   0x80 ; move cursor to line 1[lock_counter]
     addwf   lock_counter, W, A
@@ -28,7 +27,7 @@ LCDPrintDecoded:
     movlw   10
     call    LCD_delay_x4us
     
-    movf    decoded_char, W, A ; display character
+    movf    LCD_decoded_char, W, A ; display character
     call    LCD_Send_Byte_D
 
     movlw   00010000B ; shift cursor left by 1
@@ -104,17 +103,6 @@ LCDPrintOverflow:
     call LCD_Send_Byte_D
     movlw 'W'
     call LCD_Send_Byte_D
-    
-    movlw   250
-    call    LCD_delay_ms
-    movlw   250
-    call    LCD_delay_ms
-    movlw   250
-    call    LCD_delay_ms
-    movlw   250
-    call    LCD_delay_ms
-
-    call    LCDClearLine2 ; clear LCD line 2 after 1 second
     
     return
 

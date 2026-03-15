@@ -21,31 +21,27 @@ extrn	LCDPrintDecoded
 extrn   ShiftCursorRight
 extrn   LCDPrintOverflow
     
-global	timer_counter, lock_counter, key_counter, current_key
+; from HomePage
+extrn	HomePageStart
+    
+extrn	timer_counter
+extrn	current_state
+extrn	last_state
+extrn	current_key
+extrn	decoded_char
+    
+global	lock_counter, key_counter
+global	NokiaStart
 
 psect	udata_acs
-timer_counter:	ds 1 ; track amount of time a key is pressed
-current_state:	ds 1 ; whether a button is pressed or not
-last_state:	ds 1 ; whether a button was pressed or not in the last check
-current_key:	ds 1 ; the key beig pressed
 last_key:	ds 1 ; last key that was pressed
 lock_counter:	ds 1 ; number of characters stored in message_buffer
 key_counter:	ds 1 ; number of times a key is pressed consecutively
-decoded_char:	ds 1 ; decoded character
 message_buffer: ds 32 ; stores all locked characters
-
     
-psect	code, abs
+psect	read_nokia, class=CODE
 	
-rst:
-	org	0x0000	; reset vector
-	goto	start
-
-int_hi:
-	org	0x0008	; high vector, no low vector
-	goto	TimerInterrupt
-	
-start:
+NokiaStart:
 	clrf	timer_counter, A
 	clrf	current_state, A
 	clrf	last_state, A
@@ -93,6 +89,24 @@ MainLoop:
 	movf	current_key, W, A ; if key is not pressed
 	xorlw	0xFF
 	bz	KeyReleased ; branch to KeyReleased
+	
+	movf	current_key, W, A ; if 'F' is pressed branch to ExecF
+	xorlw	'F'
+	bz	ExecF
+	
+	bra	CheckHigh ; check if current_key is numeric, else branch back to MainLoop
+	
+CheckHigh:
+	movlw	'9'
+	cpfsgt	current_key, A
+	bra	CheckLow
+	
+	bra	MainLoop 
+	
+CheckLow:
+	movlw	'0'
+	cpfslt	last_key, A
+	bra	MainLoop
 	
 	bra	KeyPressed ; else branch to KeyPressed
 	
@@ -245,8 +259,28 @@ LockChar:
 	return
 	
 Overflow:
-	call	LCDPrintOverflow ; prints 'OVERFLOW' on LCD line 2
-	bra	MainLoop ; branch back to MainLoop
+	call	LCDPrintOverflow ; displays 'OVERFLOW' on LCD line 2
+	
+OverflowWaitLoop:
+	call	KeyPad_Read ; only break loop if specific keys are pressed
+	movwf	current_key, A
+	
+	movf	current_key, W, A
+	xorlw	'F' 
+	bz	ExecF ; restarts program
+	
+	bra	OverflowWaitLoop
+	
+ExecF:
+	call	KeyPad_Read ; wait till key is released
+	xorlw	0xFF
+	bz	GotoHomepage
+	
+	bra	ExecF
+	
+GotoHomepage:
+	call	clear_LCD ; clears LCD
+	goto	HomePageStart ; go back to home page
 	
 ReadBufferChar:
 	lfsr    0, message_buffer
@@ -256,4 +290,3 @@ ReadBufferChar:
 	movf    INDF0, W, A
 	return
     
-	end	rst

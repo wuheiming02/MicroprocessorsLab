@@ -4,12 +4,11 @@
 extrn	key_counter
 extrn   current_key
     
+; from HomePage
+extrn	table_index
+extrn	dummy_counter
+    
 global	DecodeChar
-
-psect	udata_acs   
-table_index:	ds 1 ; nokia_table index 
-dummy_counter:	ds 1 ; column number for nokia_table
-
     
 psect	DecodeNokia, class=CODE
 	

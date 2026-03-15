@@ -5,11 +5,11 @@ extrn	timer_counter
 global	TimerSetup, TimerInterrupt
     
 psect	timer_code, class=CODE
-; use 500ms as a base unit of time for Morse code
+; use 250ms as a base unit of time
 TimerSetup:	
-	movlw	0x85
+	movlw	0xC2
 	movwf	TMR0H, A
-	movlw	0xEE 
+	movlw	0xF7
 	movwf	TMR0L, A
 	
 	movlw	10000111B
@@ -25,13 +25,13 @@ TimerInterrupt:
 	
 	bcf	TMR0IF
 	; clamp timer_counter at 20 to prevent accidentally overflowing to 0x00
-	movlw	10
+	movlw	20
 	cpfsgt	timer_counter, A
 	incf	timer_counter, F, A
 	
-	movlw	0x85
+	movlw	0xC2
 	movwf	TMR0H, A
-	movlw	0xEE
+	movlw	0xF7
 	movwf	TMR0L, A
 	
 	movlw	10000111B

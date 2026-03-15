@@ -9,25 +9,26 @@ extrn	LCD_delay_x4us
 ; from DecodeMorseCode
 extrn	temp_symbol, bit_length
     
-global	LCDPrintDecoded
-global	LCDPrintSymbol
-global	LCDPrintError
-global	LCDPrintOverflow
-global	LCDClearLine2
+; from HomePage
+extrn	shift_counter
+extrn	clear_counter
+extrn	LCD_decoded_char
+    
+global	LCDPrintDecodedMorse
+global	LCDPrintSymbolMorse
+global	LCDPrintErrorMorse
+global	LCDPrintOverflowMorse
+global	LCDClearLine2Morse
     
 global	decoded_counter
-global	shift_counter
 
 psect	udata_acs
 decoded_counter:ds 1 ; number of characters decoded
-shift_counter:	ds 1 ; number of times the display is shifted
-clear_counter:	ds 1 ; number of spaces to clear on line 2
-decoded_char:	ds 1 ; decoded character (different from the one in ReadMorseCode)
     
 psect	MorseLCD, class=CODE
 
-LCDPrintDecoded:
-    movwf   decoded_char, A ; place character in decoded_char
+LCDPrintDecodedMorse:
+    movwf   LCD_decoded_char, A ; place character in LCD_decoded_char
     
     movlw   0x80 ; display character on line 1[decoded_counter]
     addwf   decoded_counter, W, A
@@ -35,7 +36,7 @@ LCDPrintDecoded:
     movlw   10
     call    LCD_delay_x4us
     
-    movf    decoded_char, W, A
+    movf    LCD_decoded_char, W, A
     call    LCD_Send_Byte_D
     incf    decoded_counter, F, A ; increment decoded_counter
     
@@ -50,10 +51,10 @@ LCDPrintDecoded:
     incf    shift_counter, F, A ; increment shift counter
     
 NoShift:
-    call    LCDClearLine2 ; clear LCD line 2
+    call    LCDClearLine2Morse ; clear LCD line 2
     return
     
-LCDPrintSymbol:    
+LCDPrintSymbolMorse:    
     movlw   0x40 ; move the cursor to second line
     addlw   0x80
     addwf   shift_counter, W, A ; add shift_counter
@@ -68,7 +69,7 @@ LCDPrintSymbol:
     return
     
     
-LCDClearLine2:
+LCDClearLine2Morse:
     movlw   0x40 ; move cursor to line 2
     addlw   0x80
     call    LCD_Send_Byte_I
@@ -94,8 +95,8 @@ ClearLoop:
     return
     
     
-LCDPrintError:
-    call    LCDClearLine2 ; clear LCD line 2
+LCDPrintErrorMorse:
+    call    LCDClearLine2Morse ; clear LCD line 2
     
     movlw   0x40 ; move the cursor back to line 2
     addlw   0x80
@@ -117,8 +118,8 @@ LCDPrintError:
 
     return
     
-LCDPrintOverflow:
-    call    LCDClearLine2 ; clear LCD line 2
+LCDPrintOverflowMorse:
+    call    LCDClearLine2Morse ; clear LCD line 2
     
     movlw   0x40 ; move the cursor back to line 2
     addlw   0x80

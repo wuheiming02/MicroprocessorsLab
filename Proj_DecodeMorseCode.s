@@ -8,10 +8,14 @@ extrn   LCD_Send_Byte_D
 extrn	LCD_delay_ms
     
 ; from MorseLCD
-extrn	LCDPrintSymbol
-extrn	LCDPrintDecoded
-extrn	LCDPrintError
-extrn	LCDClearLine2
+extrn	LCDPrintSymbolMorse
+extrn	LCDPrintDecodedMorse
+extrn	LCDPrintErrorMorse
+extrn	LCDClearLine2Morse
+    
+; from HomePage
+extrn	table_index
+extrn	dummy_counter
     
 global	DecodeLetter, StoreSymbol, ClearBuffer, MorseError
 global	temp_symbol, bit_buffer, bit_length
@@ -19,8 +23,6 @@ global	temp_symbol, bit_buffer, bit_length
 psect	udata_acs 
 bit_buffer:	ds 1 ; holds dots and dashes as 0s and 1s
 bit_length:	ds 1 ; how many dots and dashes are stored
-tree_index:	ds 1 ; morse_table index of the character specifed in bit_buffer
-counter:	ds 1 ; loop counter to interpret all the dots and dahses in bit_buffer
 temp_bits:	ds 1 ; dummy varaible to hold bit_buffer to align the dot and dashes to the left
 temp_symbol:	ds 1 ; dummy variable to hold '.' or '-' 
 alignment_counter:  ds 1 ; number of times temp_bits have to be shifted before decoding
@@ -44,7 +46,7 @@ StoreSymbol:
     rlcf    bit_buffer, f, A ; shift bit_buffer left
     
     movf    temp_symbol, W, A
-    call    LCDPrintSymbol ; display '.' or '-' on LCD line 2
+    call    LCDPrintSymbolMorse ; display '.' or '-' on LCD line 2
     
     movf    temp_symbol, W, A
     xorlw   '-'
@@ -62,13 +64,13 @@ DecodeLetter:
     cpfslt  bit_length, A
     bra	    MorseError ; branch to MorseError
     
-    movlw   1 ; start with a base tree_index value of 1
-    movwf   tree_index, A 
+    movlw   1 ; start with a base table_index value of 1
+    movwf   table_index, A 
     
     movff   bit_buffer, temp_bits ; copy bit_buffer into temp_bits
     call    AlignBits ; align temp_bits to the left
     
-    movff   bit_length, counter ; copy bit_length into counter
+    movff   bit_length, dummy_counter ; copy bit_length into dummy_counter
     
 DecodeLoop:
     bcf	    STATUS, 0, A ; check if left-most bit in temp_bits is 0 or 1
@@ -78,18 +80,18 @@ DecodeLoop:
     bra	    DotBranch ; if 0 branch to DotBranch
     
 DotBranch:
-    bcf	    STATUS, 0, A ; multiply tree_index by 2
-    rlcf    tree_index, F, A
+    bcf	    STATUS, 0, A ; multiply table_index by 2
+    rlcf    table_index, F, A
     bra	    NextSymbol ; branch to NextSymbol to continue to next bit
     
 DashBranch:
-    bcf	    STATUS, 0, A ; multiply tree_index by 2 then increment
-    rlcf    tree_index, F, A
-    incf    tree_index, F, A
+    bcf	    STATUS, 0, A ; multiply table_index by 2 then increment
+    rlcf    table_index, F, A
+    incf    table_index, F, A
     bra	    NextSymbol ; branch to NextSymbol to continue to next bit
 
 NextSymbol:
-    decfsz  counter, F, A ; decrement counter
+    decfsz  dummy_counter, F, A ; decrement dummy_counter
     bra	    DecodeLoop
     
     movlw   low(morse_table) ; find characrter in morse_table after all symbols have been processed
@@ -99,7 +101,7 @@ NextSymbol:
     movlw   low highword(morse_table)
     movwf   TBLPTRU, A
 
-    movf    tree_index, W, A
+    movf    table_index, W, A
     addwf   TBLPTRL, F, A
     movlw   0
     addwfc  TBLPTRH, F, A
@@ -115,7 +117,7 @@ ClearBuffer:
     return  
     
 MorseError:
-    call    LCDPrintError ; print error message
+    call    LCDPrintErrorMorse ; print error message
     call    ClearBuffer ; clear buffer
     
     movlw   250 ; wait 1 second 
@@ -127,7 +129,7 @@ MorseError:
     movlw   250
     call    LCD_delay_ms
 
-    call    LCDClearLine2 ; clear error message 
+    call    LCDClearLine2Morse ; clear error message 
     
     movlw   '?' ; move '?' to W 
     

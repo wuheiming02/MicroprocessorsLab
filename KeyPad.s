@@ -256,6 +256,3 @@ KP_D1:
         return
 
         end
-
-
-

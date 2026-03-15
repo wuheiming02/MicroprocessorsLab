@@ -1,13 +1,12 @@
 #include <xc.inc>
 
-global  LCD_Setup, LCD_Write_Message, clear_LCD, line2_shift, LCD_Write_Message_direct, LCD_Send_Byte_D, LCD_delay_ms, LCD_Send_Byte_I, LCD_delay_x4us
+global  LCD_Setup, clear_LCD, LCD_Send_Byte_D, LCD_delay_ms, LCD_Send_Byte_I, LCD_delay_x4us
 
 psect	udata_acs   ; named variables in access ram
 LCD_cnt_l:	ds 1   ; reserve 1 byte for variable LCD_cnt_l
 LCD_cnt_h:	ds 1   ; reserve 1 byte for variable LCD_cnt_h
 LCD_cnt_ms:	ds 1   ; reserve 1 byte for ms counter
 LCD_tmp:	ds 1   ; reserve 1 byte for temporary use
-LCD_counter:	ds 1   ; reserve 1 byte for counting through nessage
 
 	LCD_E	EQU 5	; LCD enable bit
     	LCD_RS	EQU 4	; LCD register select bit
@@ -47,47 +46,6 @@ LCD_Setup:
 	movlw	10		; wait 40us
 	call	LCD_delay_x4us
 	return
-
-LCD_Write_Message:	    ; Message stored at FSR2, length stored in W
-	movwf   LCD_counter, A
-LCD_Loop_message:
-	movf    POSTINC2, W, A
-	movwf	LCD_tmp, A  ; store next character temporarily
-	movlw	0x0d	    ; compare character to 0x0d
-	cpfseq	LCD_tmp, A  ; skip next line if next character is 0x0d
-	bra	print_character
-	bra	move_to_line2
-print_character:
-	movf	LCD_tmp, W, A	; release character from temporary byte
-	call    LCD_Send_Byte_D	; send chracter to LCD
-skip_character:
-	decfsz  LCD_counter, A
-	bra	LCD_Loop_message
-	return
-move_to_line2:
-	call    line2_shift
-	bra     skip_character
-	
-LCD_Write_Message_direct:
-	movwf   LCD_counter, A	; load LCD counter
-direct_loop:
-	tblrd*+			; one byte from PM to TABLAT, increment TBLPRT
-	movf	TABLAT, W, A	; move data to W
-	movwf	LCD_tmp, A  ; store next character temporarily
-	movlw	0x0d	    ; compare character to 0x0d
-	cpfseq	LCD_tmp, A  ; skip next line if next character is 0x0d
-	bra	print_character_direct
-	bra	move_to_line2_direct
-print_character_direct:
-	movf	LCD_tmp, W, A	; release character from temporary byte
-	call    LCD_Send_Byte_D	; send characrter to LCD
-skip_character_direct:
-	decfsz  LCD_counter, A	; count down to 0
-	bra	direct_loop
-	return
-move_to_line2_direct:
-	call    line2_shift
-	bra     skip_character_direct
 
 LCD_Send_Byte_I:	    ; Transmits byte stored in W to instruction reg
 	movwf   LCD_tmp, A

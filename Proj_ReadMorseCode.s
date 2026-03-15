@@ -23,37 +23,30 @@ extrn	bit_buffer
 extrn	bit_length
     
 ; from MorseLCD    
-extrn	LCDPrintDecoded
-extrn	LCDPrintError
-extrn	LCDPrintOverflow
-extrn	LCDClearLine2
+extrn	LCDPrintDecodedMorse
+extrn	LCDPrintErrorMorse
+extrn	LCDPrintOverflowMorse
+extrn	LCDClearLine2Morse
 extrn	MorseError
 
 extrn	decoded_counter
+    
+; from HomePage
+extrn	HomePageStart
+    
+extrn	timer_counter
+extrn	current_state
+extrn	last_state
+extrn	current_key
+extrn	decoded_char
+    
 extrn	shift_counter
     
-global	timer_counter, decoded_char
+global	MorseStart
 
-psect	udata_acs
-timer_counter:	ds 1 ; track amount of time pressed or released
-current_state:	ds 1 ; whether a button is pressed or not
-last_state:	ds 1 ; whether a button was pressed or not in the last check
-current_key:	ds 1 ; the key being pressed
-decoded_char:	ds 1 ; decoded character
-    
-
-    
-psect	code, abs
+psect	read_morse_code, class=CODE
 	
-rst:
-	org	0x0000	; reset vector
-	goto	start
-
-int_hi:
-	org	0x0008	; high vector, no low vector
-	goto	TimerInterrupt
-	
-start:
+MorseStart:
 	clrf	timer_counter, A
 	clrf	current_state, A
 	clrf	last_state, A
@@ -77,7 +70,7 @@ SetupWaitLoop:
 	
 	movf	current_key, W, A ; restarts program if 'F' is pressed
 	xorlw	'F'
-	bz	start
+	bz	ExecF
 	
 	movf	current_key, W, A
 	xorlw	'5'
@@ -112,6 +105,10 @@ KeyPressed:
 	xorlw	'5'
 	bz	CheckState ; check if a key was pressed just before this
 	
+	movf	current_key, W, A ; if 'F' is pressed branch to ExecF
+	xorlw	'F'
+	bz	ExecF
+	
 	bra	ResetTimer ; reset timer
 	
 CheckState:
@@ -127,7 +124,7 @@ StateChange:
 	bra	PressFinished ; else branch to PressFinished
 	
 PressFinished:
-	movlw	2 ; if '5' was pressed for less than 3 dits
+	movlw	5 ; if '5' was pressed for less than 6 units
 	cpfsgt	timer_counter, A 
 	bra	StoreDot ; interpret as a got
 	
@@ -144,7 +141,7 @@ StoreDash:
 	bra	ResetTimer ; reset timer
 
 ReleaseFinished:
-	movlw	2 ; if a key was released for less than 3 dits
+	movlw	5 ; if a key was released for less than 3 dits
 	cpfsgt	timer_counter, A
 	bra	ResetTimer ; reset the timer
 	
@@ -167,8 +164,8 @@ InvalidMorse:
 	bra	ResetTimer ; reset timer
 	
 PrintChar:
-	call    LCDPrintDecoded ; display valid character on line 1 of LCD
-	call	LCDClearLine2 ; clear line 2 on LCD
+	call    LCDPrintDecodedMorse ; display valid character on line 1 of LCD
+	call	LCDClearLine2Morse ; clear line 2 on LCD
 	
 	return
 	
@@ -185,11 +182,11 @@ NoStateChange:
 	bra	CheckPress ; check if '5' was pressed for too long
 	
 CheckPress:
-	movlw	6 ; if '5' was pressed for less than 7 dits
+	movlw	13 ; if '5' was pressed for less than 13 units
 	cpfsgt	timer_counter, A
 	bra	MainLoop ; if yes nothing happens, branch back to MainLoop
 	
-	call	LCDPrintError ; else display error message on LCD line 2
+	call	LCDPrintErrorMorse ; else display error message on LCD line 2
 	call	ClearBuffer ; clear bit_buffer and bit_length to restart Morse input
 	
 WaitRelease:
@@ -197,11 +194,11 @@ WaitRelease:
 	xorlw	'5'
 	bz	WaitRelease
 	
-	call	LCDClearLine2
+	call	LCDClearLine2Morse
 	bra	ResetTimer ; reset timer
 	
 CheckRelease:
-	movlw	6 ; check if no key was pressed for less than 7 dits
+	movlw	13 ; check if no key was pressed for less than 13 units
 	cpfsgt	timer_counter, A
 	bra	MainLoop ; if yes nothing happens, branch back to MainLoop
 	
@@ -215,33 +212,42 @@ CheckRelease:
 	movf	decoded_char, W, A
 	call	PrintChar ; else display the character and a space bar
 	movlw	' '
-	call	LCDPrintDecoded
+	call	LCDPrintDecodedMorse
 	
 WaitPress:
 	call	KeyPad_Read ; press '5' to continue input
 	xorlw	'5'
 	bnz	WaitPress
 	
-	call	LCDClearLine2 ; clear line 2
+	call	LCDClearLine2Morse ; clear line 2
 	bra	ResetTimer ; reset timer
 	
 InvalidMorseWait:
-	call	LCDPrintError ; else display error message on LCD line 2
+	call	LCDPrintErrorMorse ; else display error message on LCD line 2
 	call	ClearBuffer ; clear bit_buffer and bit_length to restart Morse input
 	bra	WaitPress ; branch to WaitPress
 	
 Overflow:
-	call	LCDPrintOverflow ; displays 'OVERFLOW' on LCD line 2
+	call	LCDPrintOverflowMorse ; displays 'OVERFLOW' on LCD line 2
 	
 OverflowWaitLoop:
 	call	KeyPad_Read ; only break loop if specific keys are pressed
-	movwf	current_key
+	movwf	current_key, A
 	
 	movf	current_key, W, A
-	xorlw	'F'
-	bz	start ; restarts program
-	; bz	ExecF
+	xorlw	'F' 
+	bz	ExecF ; restarts program
 	
 	bra	OverflowWaitLoop
 	
-	end	rst
+ExecF:
+	call	KeyPad_Read ; wait till key is released
+	xorlw	0xFF
+	bz	GotoHomepage
+	
+	bra	ExecF
+	
+GotoHomepage:
+	call	clear_LCD ; clears LCD
+	goto	HomePageStart ; go back to home page
+	
