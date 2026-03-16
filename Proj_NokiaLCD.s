@@ -14,7 +14,7 @@ extrn	shift_counter
 extrn	clear_counter
 extrn	LCD_decoded_char
     
-global	LCDPrintDecoded, ShiftCursorRight, LCDPrintOverflow
+global	LCDPrintDecoded, ShiftCursorRight, LCDPrintOverflow, LCDClearLine2
     
 psect	NokiaLCD, class=CODE
 

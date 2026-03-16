@@ -25,6 +25,16 @@ extrn   LCDPrintOverflow
     
 ; from HomePage
 extrn	HomePageStart
+
+; from Proj_Encrypt
+extrn	Encrypt_Init
+extrn	Encrypt_Run
+
+; from Proj_UARTSetup
+extrn	UART_Setup
+
+; from Proj_UARTOutput
+extrn	UART_Out_Encrypted
     
 extrn	timer_counter
 extrn	current_state
@@ -60,6 +70,7 @@ NokiaStart:
 	call    clear_LCD
 	
 	call    KeyPad_Init
+	call	UART_Setup
 	
 SetupWaitLoop:
 ; program starts when a numeric key is pressed
@@ -70,6 +81,10 @@ SetupWaitLoop:
 	movf	last_key, W, A
 	xorlw	'F'
 	bz	ExecF
+	
+	movf	current_key, W, A ; if 'C' is pressed confirm and encrypt
+	xorlw	'C'
+	bz	ConfirmEncrypt_Release
 	
 	bra	EntryCheckHigh
 	
@@ -99,10 +114,16 @@ MainLoop:
 	xorlw	0xFF
 	bz	KeyReleased ; branch to KeyReleased
 	
+	movf	current_key, W, A ; if 'C' is pressed confirm and encrypt
+	xorlw	'C'
+	bz	ConfirmEncrypt_Release
+	
+	
 	movf	current_key, W, A ; if 'F' is pressed branch to ExecF
 	xorlw	'F'
 	bz	ExecF
-	
+
+
 	bra	CheckHigh ; check if current_key is numeric, else branch back to MainLoop
 	
 CheckHigh:
@@ -291,6 +312,55 @@ GotoHomepage:
 	call	clear_LCD ; clears LCD
 	goto	HomePageStart ; go back to home page
 	
+; ============================================================
+; ConfirmEncrypt
+; ============================================================
+; Called when 'C' is pressed during message entry.
+; 1. Waits for 'C' to be released
+; 2. Commits the last previewed character (if any)
+; 3. Runs Encrypt_Init + Encrypt_Run (key entry + encryption
+;    + LCD display of result)
+; 4. Sends the encrypted message_buffer over UART labelled
+;    "ENC: " so it appears in the terminal
+; 5. Resets buffer state and returns to SetupWaitLoop
+; ============================================================
+ConfirmEncrypt:
+	; Wait for 'C' to be physically released
+ConfirmEncrypt_Release:
+	
+	call	clear_LCD
+    
+	call	KeyPad_Read
+	addlw	1               ; 0xFF+1 = 0x00, Z set when released
+	bnz	ConfirmEncrypt_Release
+
+	; Commit last previewed character if there is one
+	
+	
+    
+	
+    
+	
+	
+	
+	movf	lock_counter, W, A
+	bz	ConfirmEncrypt_Go   ; nothing in buffer yet, skip LockChar
+	call	LockChar
+
+ConfirmEncrypt_Go:
+	; Run key entry, validation, encryption, and LCD display
+	call	Encrypt_Init
+	call	Encrypt_Run
+
+	; Transmit encrypted message over UART
+	call	UART_Out_Encrypted
+
+	; Reset buffer state ready for next message
+	clrf	lock_counter, A
+	clrf	key_counter, A
+	clrf	timer_counter, A
+	bra	SetupWaitLoop
+
 ReadBufferChar:
 	lfsr    0, message_buffer
 	addwf   FSR0L, F, A
