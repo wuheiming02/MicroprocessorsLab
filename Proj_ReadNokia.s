@@ -6,10 +6,12 @@ extrn	TimerSetup, TimerInterrupt
 ; from KeyPad
 extrn   KeyPad_Init, KeyPad_Read
 
-; from LCD    
+; from LCD
 extrn   LCD_Setup
+extrn	LCD_Send_Byte_I
 extrn   LCD_Send_Byte_D
 extrn   clear_LCD
+extrn	LCD_delay_x4us
 extrn	LCD_delay_ms
 
 ; from DecodeNokia    
@@ -64,6 +66,12 @@ SetupWaitLoop:
 	
 	movwf	last_key, A
 	
+	movf	last_key, W, A
+	xorlw	'F'
+	bz	ExecF
+	
+	bra	EntryCheckHigh
+	
 EntryCheckHigh:
 	movlw	'9'
 	cpfsgt	last_key, A
@@ -105,10 +113,10 @@ CheckHigh:
 	
 CheckLow:
 	movlw	'0'
-	cpfslt	last_key, A
-	bra	MainLoop
-	
+	cpfslt	current_key, A
 	bra	KeyPressed ; else branch to KeyPressed
+	
+	bra	MainLoop
 	
 KeyReleased:
 	movff	last_key, current_key ; copy last_key to current_key

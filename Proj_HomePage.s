@@ -129,11 +129,11 @@ WaitForInput:
     xorlw   'A'
     bz	    ExecA
     
-    movf    current_key, A
+    movf    current_key, W, A
     xorlw   'B'
     bz	    ExecB
     
-    movf    current_key, A
+    movf    current_key, W, A
     xorlw   'F'
     bz	    ExecF
     
