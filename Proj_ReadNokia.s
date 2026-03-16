@@ -31,6 +31,13 @@ extrn	current_state
 extrn	last_state
 extrn	current_key
 extrn	decoded_char
+    
+; from Encryption, UART
+extrn	UART_Setup
+extrn	UART_Out_Plain
+extrn	UART_Out_Encrypted
+extrn	Encrypt_Init
+extrn	Encrypt_Run
    
     
 global	lock_counter, key_counter, message_buffer
@@ -61,6 +68,9 @@ NokiaStart:
 	
 	call    KeyPad_Init
 	
+	call	UART_Setup
+	call	Encrypt_Init
+	
 SetupWaitLoop:
 ; program starts when a numeric key is pressed
 	call	KeyPad_Read
@@ -70,6 +80,14 @@ SetupWaitLoop:
 	movf	last_key, W, A
 	xorlw	'F'
 	bz	ExecF
+	
+	movf	last_key, W, A ; if 'C' is pressed branch to ExecF
+	xorlw	'C'
+	bz	ExecC
+	
+	movf	last_key, W, A ; if 'D' is pressed branch to ExecF
+	xorlw	'D'
+	bz	ExecD
 	
 	bra	EntryCheckHigh
 	
@@ -102,6 +120,14 @@ MainLoop:
 	movf	current_key, W, A ; if 'F' is pressed branch to ExecF
 	xorlw	'F'
 	bz	ExecF
+	
+	movf	current_key, W, A ; if 'C' is pressed branch to ExecF
+	xorlw	'C'
+	bz	ExecC
+	
+	movf	current_key, W, A ; if 'D' is pressed branch to ExecF
+	xorlw	'D'
+	bz	ExecD
 	
 	bra	CheckHigh ; check if current_key is numeric, else branch back to MainLoop
 	
@@ -298,4 +324,34 @@ ReadBufferChar:
 	addwfc  FSR0H, F, A
 	movf    INDF0, W, A
 	return
+	
+ExecC:
+	call	KeyPad_Read ; wait till key is released
+	xorlw	0xFF
+	bz	SendEncryptedMessage
+	
+	bra	ExecC
+	
+SendEncryptedMessage:
+	movf	lock_counter, W, A
+	bz	SetupWaitLoop
+	
+	call	Encrypt_Init
+	call	Encrypt_Run
+	call	UART_Out_Encrypted
+	bra	GotoHomepage
+	
+ExecD:
+	call	KeyPad_Read ; wait till key is released
+	xorlw	0xFF
+	bz	SendPlainMessage
+	
+	bra	ExecD
+	
+SendPlainMessage:
+	movf	lock_counter, W, A
+	bz	SetupWaitLoop
+	
+	call	UART_Out_Plain
+	bra	GotoHomepage
 	

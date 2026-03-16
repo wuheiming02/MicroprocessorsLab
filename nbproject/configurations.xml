@@ -30,7 +30,7 @@
       <itemPath>Proj_Encrypt.s</itemPath>
       <itemPath>Proj_UARTOutput.s</itemPath>
       <itemPath>Proj_UARTSetup.s</itemPath>
-      <itemPath>Proj_ReadNokia-1.s</itemPath>
+      <itemPath>Proj_ReadNokia.s</itemPath>
     </logicalFolder>
   </logicalFolder>
   <sourceRootList>
