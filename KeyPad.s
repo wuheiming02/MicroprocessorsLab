@@ -10,7 +10,7 @@
 ; Returns 0xFF if no valid key
 ; ============================================================
 
-global  KeyPad_Init, KeyPad_Read
+global  KeyPad_Init, KeyPad_Read, KP_Table
 
 ; ------------------------------------------------------------
 ; Reserve variables in Access RAM
@@ -216,7 +216,7 @@ ComputeIndex:
         movwf   TBLPTRL, A
 
         movf    KP_index, W, A
-        addwf   TBLPTRL, F, A
+        addwf   TBLPTRL, F, A  ; should really propagate carry bits to TBLPTRH and TBLPTRU
 
         tblrd*
         movff   TABLAT, KP_result
@@ -229,6 +229,16 @@ KP_Invalid:
         movwf   KP_result, A
         return
 
+; ------------------------------------------------------------
+; Small Settling Delay
+; ------------------------------------------------------------
+KP_Delay:
+        movlw   0xFF
+        movwf   KP_index, A
+KP_D1:
+        decfsz  KP_index, F, A
+        bra     KP_D1
+        return
 
 ; ------------------------------------------------------------
 ; ASCII Lookup Table
@@ -242,17 +252,4 @@ KP_Table:
         db 'A','0','B','C'
 
 align 2
-
-
-; ------------------------------------------------------------
-; Small Settling Delay
-; ------------------------------------------------------------
-KP_Delay:
-        movlw   0xFF
-        movwf   KP_index, A
-KP_D1:
-        decfsz  KP_index, F, A
-        bra     KP_D1
-        return
-
         end

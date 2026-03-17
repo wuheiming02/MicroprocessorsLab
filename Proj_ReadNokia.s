@@ -74,20 +74,22 @@ NokiaStart:
 SetupWaitLoop:
 ; program starts when a numeric key is pressed
 	call	KeyPad_Read
-	
 	movwf	last_key, A
 	
-	movf	last_key, W, A
-	xorlw	'F'
-	bz	ExecF
+	movlw	'F' ; if 'F' is pressed branch to ExecF
+	cpfseq	last_key, A
+	bra	$ + 6
+	goto	ExecF
 	
-	movf	last_key, W, A ; if 'C' is pressed branch to ExecF
-	xorlw	'C'
-	bz	ExecC
+	movlw	'C' ; if 'C' is pressed branch to ExecC
+	cpfseq	last_key, A
+	bra	$ + 6
+	goto	ExecC
 	
-	movf	last_key, W, A ; if 'D' is pressed branch to ExecF
-	xorlw	'D'
-	bz	ExecD
+	movlw	'D' ; if 'D' is pressed branch to ExecD
+	cpfseq	last_key, A
+	bra	$ + 6
+	goto	ExecD
 	
 	bra	EntryCheckHigh
 	
@@ -117,17 +119,20 @@ MainLoop:
 	xorlw	0xFF
 	bz	KeyReleased ; branch to KeyReleased
 	
-	movf	current_key, W, A ; if 'F' is pressed branch to ExecF
-	xorlw	'F'
-	bz	ExecF
+	movlw	'F' ; if 'F' is pressed branch to ExecF
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecF
 	
-	movf	current_key, W, A ; if 'C' is pressed branch to ExecF
-	xorlw	'C'
-	bz	ExecC
+	movlw	'C' ; if 'C' is pressed branch to ExecC
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecC
 	
-	movf	current_key, W, A ; if 'D' is pressed branch to ExecF
-	xorlw	'D'
-	bz	ExecD
+	movlw	'D' ; if 'D' is pressed branch to ExecD
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecD
 	
 	bra	CheckHigh ; check if current_key is numeric, else branch back to MainLoop
 	
@@ -143,7 +148,7 @@ CheckLow:
 	cpfslt	current_key, A
 	bra	KeyPressed ; else branch to KeyPressed
 	
-	bra	MainLoop
+	goto	MainLoop
 	
 KeyReleased:
 	movff	last_key, current_key ; copy last_key to current_key
@@ -162,7 +167,7 @@ CheckState:
 	
 	movf	current_state, W, A ; if no state change check current_state
 	bz	CheckTimer ; if current_state is 0 branch to CheckTimer
-	bra	MainLoop ; else branch back to MainLoop
+	goto	MainLoop ; else branch back to MainLoop
 	
 StateChange:
 	movff	current_state, last_state ; copy current_state into last_state
@@ -174,15 +179,15 @@ StateChange:
 ResetTimer:
 	clrf	timer_counter, A ; set timer_counter to 0
 	call	TimerSetup ; setup timer
-	bra	MainLoop ; branch back to MainLoop
+	goto	MainLoop ; branch back to MainLoop
 	
 CheckTimer:
 	movlw	5 ; check if no key is pressed for less than 6 units of time (1500ms)
 	cpfsgt	timer_counter, A 
-	bra	MainLoop ; if yes branch back to MainLoop
+	goto	MainLoop ; if yes branch back to MainLoop
 	
 	call	LockChar ; else lock the current character
-	bra	SetupWaitLoop ; branch to SetupWaitLoop
+	goto	SetupWaitLoop ; branch to SetupWaitLoop
 	
 NumericKey:
 	movf	current_key, W, A ; check if the current key is the same as the last key
@@ -229,7 +234,7 @@ SameKey:
         xorlw   '9'
         bz      Exec79
 	
-	bra	MainLoop ; else branch back to MainLoop
+	goto	MainLoop ; else branch back to MainLoop
 	
 ; Numeric key branches	
 Exec0:
@@ -238,7 +243,7 @@ Exec0:
 	cpfslt	key_counter, A
 	call	CounterWrap
 	
-	bra	DecodeKey
+	goto	DecodeKey
 	  
 Exec1:
 	incf	key_counter, A
@@ -246,7 +251,7 @@ Exec1:
 	cpfslt	key_counter, A
 	call	CounterWrap
 	
-	bra	DecodeKey
+	goto	DecodeKey
  
 Exec234568:
 	incf	key_counter, A
@@ -254,7 +259,7 @@ Exec234568:
 	cpfslt	key_counter, A
 	call	CounterWrap
 	
-	bra	DecodeKey
+	goto	DecodeKey
     
 Exec79:
 	incf	key_counter, A
@@ -262,7 +267,7 @@ Exec79:
 	cpfslt	key_counter, A
 	call	CounterWrap
 	
-	bra	DecodeKey
+	goto	DecodeKey
     
 CounterWrap: ; wrap key_counter back to 1
 	movlw	1
@@ -273,7 +278,7 @@ DecodeKey:
 	call	DecodeChar ; decode character
 	movwf	decoded_char, A ; store decoded character into decoded_char
 	call	LCDPrintDecoded ; display character to LCD line 1
-	bra	MainLoop ; branch back to MainLoop
+	goto	MainLoop ; branch back to MainLoop
 
 LockChar: 
 	; load decoded_char into message buffer
@@ -300,14 +305,25 @@ OverflowWaitLoop:
 	call	KeyPad_Read ; only break loop if specific keys are pressed
 	movwf	current_key, A
 	
-	movf	current_key, W, A
-	xorlw	'F' 
-	bz	ExecF ; restarts program
+	movlw	'F' ; if 'F' is pressed branch to ExecF
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecF
+	
+	movlw	'C' ; if 'C' is pressed branch to ExecC
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecC
+	
+	movlw	'D' ; if 'D' is pressed branch to ExecD
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecD
 	
 	bra	OverflowWaitLoop
 	
 ExecF:
-	call	KeyPad_Read ; wait till key is released
+    	call	KeyPad_Read ; wait till key is released
 	xorlw	0xFF
 	bz	GotoHomepage
 	
@@ -332,12 +348,13 @@ ExecC:
 	
 	bra	ExecC
 	
-SendEncryptedMessage:
+SendEncryptedMessage:    
 	movf	lock_counter, W, A
 	bz	SetupWaitLoop
 	
 	call	Encrypt_Init
 	call	Encrypt_Run
+	
 	call	UART_Out_Encrypted
 	bra	GotoHomepage
 	

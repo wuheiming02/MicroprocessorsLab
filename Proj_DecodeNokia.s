@@ -8,10 +8,11 @@ extrn   current_key
 extrn	table_index
 extrn	dummy_counter
     
-global	DecodeChar
+global	DecodeChar, nokia_table
     
-psect	DecodeNokia, class=CODE
-	
+
+psect	data    
+    	
 nokia_table:
     db	    ' ','0',' ',' ',' '
     db	    '1',' ',' ',' ',' '
@@ -24,6 +25,8 @@ nokia_table:
     db	    'T','U','V','8',' '
     db	    'W','X','Y','Z','9'
 
+psect	DecodeNokia, class=CODE
+    
 DecodeChar:
     movff   key_counter, dummy_counter ; copy key_counter into dummy_counter
     decf    dummy_counter, F, A ; decrement dummy_counter because column number starts at 0

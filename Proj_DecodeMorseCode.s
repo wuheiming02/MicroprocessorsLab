@@ -27,8 +27,7 @@ temp_bits:	ds 1 ; dummy varaible to hold bit_buffer to align the dot and dashes 
 temp_symbol:	ds 1 ; dummy variable to hold '.' or '-' 
 alignment_counter:  ds 1 ; number of times temp_bits have to be shifted before decoding
 
-    
-psect	decode_morse_code, class=CODE
+psect	data
 	
 morse_table:
     db	    '?','?','E','T','I','A','N','M'
@@ -39,6 +38,10 @@ morse_table:
     db	    '?','?','?','?','?','?','?','1'
     db	    '6','?','?','?','?','?','?','?'
     db	    '7','?','?','?','8','?','9','0'
+    
+    align 2
+
+psect	decode_morse_code, class=CODE	
 
 StoreSymbol:
     movwf   temp_symbol, A ; store '.' or '-' in temp_symbol

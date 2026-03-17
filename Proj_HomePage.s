@@ -49,6 +49,17 @@ int_hi:
 HomePageStart:
     clrf    timer_counter, A
     clrf    current_key, A
+    clrf    current_state, A
+    clrf    last_state, A
+    clrf    current_key, A
+    clrf    decoded_char, A
+    
+    clrf    shift_counter, A
+    clrf    clear_counter, A
+    clrf    LCD_decoded_char, A
+    
+    clrf    table_index, A
+    clrf    dummy_counter, A
     
     call    LCD_Setup
     call    clear_LCD

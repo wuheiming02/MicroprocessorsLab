@@ -68,11 +68,12 @@ SetupWaitLoop:
 	call	KeyPad_Read
 	movwf	current_key, A
 	
-	movf	current_key, W, A ; restarts program if 'F' is pressed
-	xorlw	'F'
-	bz	ExecF
+	movlw	'F' ; if 'F' is pressed branch to ExecF
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecF
 	
-	movf	current_key, W, A
+	movf	current_key, W, A ; press '5' to exit SetupWaitLoop
 	xorlw	'5'
 	bnz	SetupWaitLoop
 	
@@ -105,9 +106,10 @@ KeyPressed:
 	xorlw	'5'
 	bz	CheckState ; check if a key was pressed just before this
 	
-	movf	current_key, W, A ; if 'F' is pressed branch to ExecF
-	xorlw	'F'
-	bz	ExecF
+	movlw	'F' ; if 'F' is pressed branch to ExecF
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecF
 	
 	bra	ResetTimer ; reset timer
 	
@@ -126,7 +128,7 @@ StateChange:
 PressFinished:
 	movlw	5 ; if '5' was pressed for less than 6 units
 	cpfsgt	timer_counter, A 
-	bra	StoreDot ; interpret as a got
+	bra	StoreDot ; interpret as a dot
 	
 	bra	StoreDash ; else interpret as a dash
 	
@@ -182,17 +184,35 @@ NoStateChange:
 	bra	CheckPress ; check if '5' was pressed for too long
 	
 CheckPress:
-	movlw	13 ; if '5' was pressed for less than 13 units
+	movlw	13 ; if '5' was pressed for less than 14 units
 	cpfsgt	timer_counter, A
 	bra	MainLoop ; if yes nothing happens, branch back to MainLoop
 	
 	call	LCDPrintErrorMorse ; else display error message on LCD line 2
+	
+	movlw   250 ; wait 1 second 
+	call    LCD_delay_ms
+	movlw   250
+	call    LCD_delay_ms
+	movlw   250
+	call    LCD_delay_ms
+	movlw   250
+	call    LCD_delay_ms
+	
 	call	ClearBuffer ; clear bit_buffer and bit_length to restart Morse input
 	
 WaitRelease:
 	call	KeyPad_Read ; press '5' to clear error message
+	movwf	current_key, A
+	
+	movlw	'F' ; if 'F' is pressed branch to ExecF
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecF
+	
+	movf	current_key, W, A
 	xorlw	'5'
-	bz	WaitRelease
+	bnz	WaitRelease
 	
 	call	LCDClearLine2Morse
 	bra	ResetTimer ; reset timer
@@ -216,6 +236,14 @@ CheckRelease:
 	
 WaitPress:
 	call	KeyPad_Read ; press '5' to continue input
+	movwf	current_key, A
+	
+	movlw	'F' ; if 'F' is pressed branch to ExecF
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecF
+	
+	movf	current_key, W, A
 	xorlw	'5'
 	bnz	WaitPress
 	
@@ -234,9 +262,10 @@ OverflowWaitLoop:
 	call	KeyPad_Read ; only break loop if specific keys are pressed
 	movwf	current_key, A
 	
-	movf	current_key, W, A
-	xorlw	'F' 
-	bz	ExecF ; restarts program
+	movlw	'F' ; if 'F' is pressed branch to ExecF
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecF
 	
 	bra	OverflowWaitLoop
 	
