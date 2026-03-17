@@ -25,12 +25,13 @@
       <itemPath>Proj_DecodeMorseCode.s</itemPath>
       <itemPath>Proj_HomePage.s</itemPath>
       <itemPath>Proj_MorseLCD.s</itemPath>
-      <itemPath>Proj_ReadMorseCode.s</itemPath>
       <itemPath>Proj_Timer.s</itemPath>
       <itemPath>Proj_Encrypt.s</itemPath>
       <itemPath>Proj_UARTOutput.s</itemPath>
       <itemPath>Proj_UARTSetup.s</itemPath>
       <itemPath>Proj_ReadNokia.s</itemPath>
+      <itemPath>Proj_Decrypt.s</itemPath>
+      <itemPath>Proj_ReadMorseCode.s</itemPath>
     </logicalFolder>
   </logicalFolder>
   <sourceRootList>

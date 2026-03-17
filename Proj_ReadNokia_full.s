@@ -6,13 +6,13 @@ extrn	TimerSetup, TimerInterrupt
 ; from KeyPad
 extrn   KeyPad_Init, KeyPad_Read
 
-; from LCD
+; from LCD    
 extrn   LCD_Setup
-extrn	LCD_Send_Byte_I
 extrn   LCD_Send_Byte_D
 extrn   clear_LCD
-extrn	LCD_delay_x4us
 extrn	LCD_delay_ms
+extrn	LCD_Send_Byte_I
+extrn	LCD_delay_x4us
 
 ; from DecodeNokia    
 extrn	DecodeChar
@@ -25,6 +25,22 @@ extrn   LCDPrintOverflow
     
 ; from HomePage
 extrn	HomePageStart
+
+; from Proj_Encrypt
+extrn	Encrypt_Init
+extrn	Encrypt_Run
+extrn	enc_index           ; reused as morse_index (idle after encryption)
+extrn	enc_alpha_pos       ; reused as morse_bits  (idle after encryption)
+extrn	enc_tmp             ; reused as morse_char  (idle after encryption)
+extrn	enc_step_cnt        ; reused as morse_len   (idle after encryption)
+
+; from Proj_UARTOutput
+extrn	UART_Out_Encrypted
+
+; from Proj_UARTSetup
+extrn	UART_Setup
+extrn	UART_Transmit_Message
+extrn	UART_counter        ; reused as morse_bit_cnt (idle after UART send)
     
 extrn	timer_counter
 extrn	current_state
@@ -32,21 +48,7 @@ extrn	last_state
 extrn	current_key
 extrn	decoded_char
     
-; from Encryption, UART
-extrn	UART_Setup
-extrn	UART_Out_Plain
-extrn	UART_Out_Encrypted
-extrn	Encrypt_Init
-extrn	Encrypt_Run
-    
-extrn	enc_index           ; reused as morse_index (idle after encryption)
-extrn	enc_alpha_pos       ; reused as morse_bits  (idle after encryption)
-extrn	enc_tmp             ; reused as morse_char  (idle after encryption)
-extrn	enc_step_cnt        ; reused as morse_len   (idle after encryption)
-extrn	UART_counter        ; reused as morse_bit_cnt (idle after UART send)
-   
-    
-global	lock_counter, key_counter, message_buffer
+global	lock_counter, key_counter
 global	NokiaStart
 
 psect	udata_acs
@@ -73,31 +75,13 @@ NokiaStart:
 	call    clear_LCD
 	
 	call    KeyPad_Init
-	
-	call	UART_Setup
-	call	Encrypt_Init
+	call	UART_Setup          ; initialise UART for Morse and encrypted output
 	
 SetupWaitLoop:
 ; program starts when a numeric key is pressed
 	call	KeyPad_Read
+	
 	movwf	last_key, A
-	
-	movlw	'F' ; if 'F' is pressed branch to ExecF
-	cpfseq	last_key, A
-	bra	$ + 6
-	goto	ExecF
-	
-	movlw	'C' ; if 'C' is pressed branch to ExecC
-	cpfseq	last_key, A
-	bra	$ + 6
-	goto	ExecC
-	
-	movlw	'D' ; if 'D' is pressed branch to ExecD
-	cpfseq	last_key, A
-	bra	$ + 6
-	goto	ExecD
-	
-	bra	EntryCheckHigh
 	
 EntryCheckHigh:
 	movlw	'9'
@@ -125,20 +109,13 @@ MainLoop:
 	xorlw	0xFF
 	bz	KeyReleased ; branch to KeyReleased
 	
-	movlw	'F' ; if 'F' is pressed branch to ExecF
-	cpfseq	current_key, A
-	bra	$ + 6
-	goto	ExecF
+	movf	current_key, W, A ; if 'F' is pressed branch to ExecF
+	xorlw	'F'
+	bz	ExecF
 	
-	movlw	'C' ; if 'C' is pressed branch to ExecC
-	cpfseq	current_key, A
-	bra	$ + 6
-	goto	ExecC
-	
-	movlw	'D' ; if 'D' is pressed branch to ExecD
-	cpfseq	current_key, A
-	bra	$ + 6
-	goto	ExecD
+	movf	current_key, W, A ; if 'C' is pressed branch to ExecC
+	xorlw	'C'
+	bz	ExecC
 	
 	bra	CheckHigh ; check if current_key is numeric, else branch back to MainLoop
 	
@@ -151,10 +128,10 @@ CheckHigh:
 	
 CheckLow:
 	movlw	'0'
-	cpfslt	current_key, A
-	bra	KeyPressed ; else branch to KeyPressed
+	cpfslt	last_key, A
+	bra	MainLoop
 	
-	goto	MainLoop
+	bra	KeyPressed ; else branch to KeyPressed
 	
 KeyReleased:
 	movff	last_key, current_key ; copy last_key to current_key
@@ -173,7 +150,7 @@ CheckState:
 	
 	movf	current_state, W, A ; if no state change check current_state
 	bz	CheckTimer ; if current_state is 0 branch to CheckTimer
-	goto	MainLoop ; else branch back to MainLoop
+	bra	MainLoop ; else branch back to MainLoop
 	
 StateChange:
 	movff	current_state, last_state ; copy current_state into last_state
@@ -185,15 +162,15 @@ StateChange:
 ResetTimer:
 	clrf	timer_counter, A ; set timer_counter to 0
 	call	TimerSetup ; setup timer
-	goto	MainLoop ; branch back to MainLoop
+	bra	MainLoop ; branch back to MainLoop
 	
 CheckTimer:
 	movlw	5 ; check if no key is pressed for less than 6 units of time (1500ms)
 	cpfsgt	timer_counter, A 
-	goto	MainLoop ; if yes branch back to MainLoop
+	bra	MainLoop ; if yes branch back to MainLoop
 	
 	call	LockChar ; else lock the current character
-	goto	SetupWaitLoop ; branch to SetupWaitLoop
+	bra	SetupWaitLoop ; branch to SetupWaitLoop
 	
 NumericKey:
 	movf	current_key, W, A ; check if the current key is the same as the last key
@@ -240,7 +217,7 @@ SameKey:
         xorlw   '9'
         bz      Exec79
 	
-	goto	MainLoop ; else branch back to MainLoop
+	bra	MainLoop ; else branch back to MainLoop
 	
 ; Numeric key branches	
 Exec0:
@@ -249,7 +226,7 @@ Exec0:
 	cpfslt	key_counter, A
 	call	CounterWrap
 	
-	goto	DecodeKey
+	bra	DecodeKey
 	  
 Exec1:
 	incf	key_counter, A
@@ -257,7 +234,7 @@ Exec1:
 	cpfslt	key_counter, A
 	call	CounterWrap
 	
-	goto	DecodeKey
+	bra	DecodeKey
  
 Exec234568:
 	incf	key_counter, A
@@ -265,7 +242,7 @@ Exec234568:
 	cpfslt	key_counter, A
 	call	CounterWrap
 	
-	goto	DecodeKey
+	bra	DecodeKey
     
 Exec79:
 	incf	key_counter, A
@@ -273,7 +250,7 @@ Exec79:
 	cpfslt	key_counter, A
 	call	CounterWrap
 	
-	goto	DecodeKey
+	bra	DecodeKey
     
 CounterWrap: ; wrap key_counter back to 1
 	movlw	1
@@ -284,7 +261,7 @@ DecodeKey:
 	call	DecodeChar ; decode character
 	movwf	decoded_char, A ; store decoded character into decoded_char
 	call	LCDPrintDecoded ; display character to LCD line 1
-	goto	MainLoop ; branch back to MainLoop
+	bra	MainLoop ; branch back to MainLoop
 
 LockChar: 
 	; load decoded_char into message buffer
@@ -311,25 +288,14 @@ OverflowWaitLoop:
 	call	KeyPad_Read ; only break loop if specific keys are pressed
 	movwf	current_key, A
 	
-	movlw	'F' ; if 'F' is pressed branch to ExecF
-	cpfseq	current_key, A
-	bra	$ + 6
-	goto	ExecF
-	
-	movlw	'C' ; if 'C' is pressed branch to ExecC
-	cpfseq	current_key, A
-	bra	$ + 6
-	goto	ExecC
-	
-	movlw	'D' ; if 'D' is pressed branch to ExecD
-	cpfseq	current_key, A
-	bra	$ + 6
-	goto	ExecD
+	movf	current_key, W, A
+	xorlw	'F' 
+	bz	ExecF ; restarts program
 	
 	bra	OverflowWaitLoop
 	
 ExecF:
-    	call	KeyPad_Read ; wait till key is released
+	call	KeyPad_Read ; wait till key is released
 	xorlw	0xFF
 	bz	GotoHomepage
 	
@@ -346,38 +312,102 @@ ReadBufferChar:
 	addwfc  FSR0H, F, A
 	movf    INDF0, W, A
 	return
-	
+
+; ============================================================
+; ExecC  -  Confirm: encrypt, send Morse over UART, send ASCII
+; ============================================================
+; Called when the user presses 'C' to confirm their message.
+;
+; Flow:
+;   1. Commit last previewed character (if any)
+;   2. Encrypt message_buffer in-place via Encrypt_Run
+;   3. Transmit encrypted message as Morse code over UART
+;   4. Transmit raw encrypted ASCII over UART (labelled ENC:)
+;   5. Display "DONE" on LCD then return to SetupWaitLoop
+;
+; Nothing is typed until 'C' is released, so no debounce
+; is needed here beyond the existing MainLoop state machine.
+; ============================================================
 ExecC:
-	call	KeyPad_Read ; wait till key is released
-	xorlw	0xFF
-	bz	SendEncryptedMessage
-	
-	bra	ExecC
-	
-SendEncryptedMessage:    
-	movf	lock_counter, W, A
-	bz	SetupWaitLoop
-	
-	call	Encrypt_Init
-	call	Encrypt_Run
-	call	MorseSend
-	call	UART_Out_Encrypted
-	bra	GotoHomepage
-	
-ExecD:
-	call	KeyPad_Read ; wait till key is released
-	xorlw	0xFF
-	bz	SendPlainMessage
-	
-	bra	ExecD
-	
-SendPlainMessage:
-	movf	lock_counter, W, A
-	bz	SetupWaitLoop
-	
-	call	UART_Out_Plain
-	bra	GotoHomepage
-	
+        ; ---- Wait for 'C' to be released ----
+ExecC_WaitRelease:
+        call    KeyPad_Read
+        addlw   1               ; 0xFF+1 = 0x00, Z set when released
+        bnz     ExecC_WaitRelease
+
+        ; ---- Step 1: commit last previewed character ----
+        movf    lock_counter, W, A
+        bz      ExecC_Encrypt   ; nothing previewed, skip LockChar
+        call    LockChar
+
+ExecC_Encrypt:
+        ; ---- Step 2: encrypt message_buffer in-place ----
+        call    Encrypt_Init
+        call    Encrypt_Run     ; prompts for key, encrypts, displays result
+
+        ; ---- Step 3: send encrypted message as Morse over UART ----
+        call    MorseSend
+
+        ; ---- Step 4: send raw encrypted ASCII over UART ----
+        call    UART_Out_Encrypted
+
+        ; ---- Step 5: show "DONE" briefly then restart ----
+        call    clear_LCD
+        movlw   0x80
+        call    LCD_Send_Byte_I
+        movlw   10
+        call    LCD_delay_x4us
+        movlw   'D'
+        call    LCD_Send_Byte_D
+        movlw   'O'
+        call    LCD_Send_Byte_D
+        movlw   'N'
+        call    LCD_Send_Byte_D
+        movlw   'E'
+        call    LCD_Send_Byte_D
+
+        movlw   250
+        call    LCD_delay_ms
+        movlw   250
+        call    LCD_delay_ms
+        movlw   250
+        call    LCD_delay_ms
+        movlw   250
+        call    LCD_delay_ms
+
+        ; Reset buffer state and go back to wait for next message
+        clrf    lock_counter, A
+        clrf    key_counter, A
+        clrf    timer_counter, A
+        call    clear_LCD
+        bra     SetupWaitLoop
+
+; ============================================================
+; MorseSend  -  Transmit message_buffer as Morse code via UART
+; ============================================================
+; Loops through message_buffer[0..lock_counter-1].
+; For each character, looks up the Morse bit pattern and
+; length from MorseTable in Flash, then transmits each
+; symbol as '.' or '-' followed by a space.
+; A '/' separator is sent between characters.
+; The full message is terminated with CR LF.
+;
+; Reuses idle enc_ variables as loop counters (safe: called
+; after Encrypt_Run has completed):
+;   enc_index    = index into message_buffer (morse_index)
+;   enc_tmp      = current ASCII character   (morse_char)
+;   enc_alpha_pos= bit pattern from table    (morse_bits)
+;   enc_step_cnt = symbol count from table   (morse_len)
+;   UART_counter = bit loop counter          (morse_bit_cnt)
+;
+; Morse encoding (bits read MSB-first from enc_alpha_pos):
+;   bit 0 = dot, bit 1 = dash
+;   enc_step_cnt = number of valid bits
+;
+; UART output format per character:
+;   [. or -][space] for each symbol, then [/][space]
+; End of message: CR LF
+; ============================================================
 MorseSend:
         clrf    enc_index, A        ; morse_index = 0
 
@@ -624,4 +654,4 @@ MorseTable:
     db  0xE0, 5     ; 8 ---..
     db  0xF0, 5     ; 9 ----.
     align 2
-	
+    

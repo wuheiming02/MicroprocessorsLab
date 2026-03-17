@@ -65,7 +65,6 @@
 ; ============================================================
 global  Encrypt_Init
 global  Encrypt_Run
-    
 global  key_digits          ; shared with Proj_Decrypt.s
 global  key_count           ; shared with Proj_Decrypt.s
 global  enc_sub1            ; shared with Proj_Decrypt.s
@@ -76,7 +75,6 @@ global  enc_alpha_pos       ; shared with Proj_Decrypt.s
 global  enc_run_shift       ; shared with Proj_Decrypt.s
 global  enc_step_cnt        ; shared with Proj_Decrypt.s
 global  enc_tmp             ; shared with Proj_Decrypt.s
-global	enc_index
 
 ; ============================================================
 ; EXTERNAL SYMBOLS

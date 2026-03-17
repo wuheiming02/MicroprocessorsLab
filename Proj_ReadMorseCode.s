@@ -22,6 +22,11 @@ extrn	ClearBuffer
 extrn	bit_buffer
 extrn	bit_length
     
+; from Proj_Decrypt
+ 
+extrn  Decrypt_Init        
+extrn  DecryptChar
+    
 ; from MorseLCD    
 extrn	LCDPrintDecodedMorse
 extrn	LCDPrintErrorMorse
@@ -62,6 +67,8 @@ MorseStart:
 	call    KeyPad_Init
 	
 	call	ClearBuffer
+	
+	call	Decrypt_Init
 	
 SetupWaitLoop: 
 ; program starts when '5' is pressed to start Morse code input
@@ -157,6 +164,8 @@ DecodeChar:
 	xorlw	'?'
 	bz	InvalidMorse ; if yes branch to InvalidMorse
 	
+	call	DecryptChar
+	
 	movf	decoded_char, W, A ; display character on LCD
 	call	PrintChar
 	bra	ResetTimer ; reset timer
@@ -228,6 +237,8 @@ CheckRelease:
 	movf	decoded_char, W, A
 	xorlw	'?'
 	bz	InvalidMorseWait ; branch to InvalidMorseWait if '?'
+	
+	call	DecryptChar
 	
 	movf	decoded_char, W, A
 	call	PrintChar ; else display the character and a space bar
