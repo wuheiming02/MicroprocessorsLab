@@ -381,7 +381,7 @@ ExecC:
 InspectionMode:
 	movlw	16
 	cpfsgt	decoded_counter, A
-	bra	ShiftingDone
+	bra	InspectionMode
 	
 	call	KeyPad_Read
 	movwf	current_key, A
@@ -398,6 +398,8 @@ InspectionMode:
 	cpfseq	current_key, A
 	bra	$ + 6
 	goto	ExecF
+	
+	bra	InspectionMode
 	
 ExecA:
 	call	KeyPad_Read
