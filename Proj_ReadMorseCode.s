@@ -24,8 +24,10 @@ extrn	bit_length
     
 ; from Proj_Decrypt
  
-extrn  Decrypt_Init        
-extrn  DecryptChar
+extrn	Decrypt_Init        
+extrn	DecryptChar
+extrn	DEC_UpdateShift
+extrn	DecBackSpaceUpdate
     
 ; from MorseLCD    
 extrn	LCDPrintDecodedMorse
@@ -54,8 +56,11 @@ psect	read_morse_code, class=CODE
 MorseStart:
 	clrf	timer_counter, A
 	clrf	current_state, A
-	clrf	last_state, A
+	;clrf	last_state, A
 	clrf	current_key, A
+	
+	movlw	1
+	movwf	last_state, A
 	
 	clrf	decoded_counter, A
 	clrf	shift_counter, A
@@ -84,13 +89,15 @@ SetupWaitLoop:
 	xorlw	'5'
 	bnz	SetupWaitLoop
 	
+	clrf	timer_counter, A
 	call    TimerSetup
 	bra	MainLoop
 
-MainLoop: 
-	movf	decoded_counter, W, A ; check if there are already 32 decoded characters
-	xorlw	32
-	bz	Overflow ; if yes branch to Overflow
+MainLoop:
+	movlw	32 ; check if there are already 32 decoded characters
+	cpfseq	decoded_counter, A
+	bra	$ + 6
+	goto	Overflow ; if yes branch to Overflow
     
 	call	KeyPad_Read
 	movwf	current_key, A ; store key in current_key
@@ -118,7 +125,14 @@ KeyPressed:
 	bra	$ + 6
 	goto	ExecF
 	
-	bra	ResetTimer ; reset timer
+	movlw	'E'
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecE
+	
+	clrf	current_state, A
+	
+	goto	ResetTimer ; reset timer
 	
 CheckState:
 	movf	current_state, W, A ; compare current_state with last_state
@@ -219,6 +233,11 @@ WaitRelease:
 	bra	$ + 6
 	goto	ExecF
 	
+	movlw	'E'
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecE
+	
 	movf	current_key, W, A
 	xorlw	'5'
 	bnz	WaitRelease
@@ -244,6 +263,7 @@ CheckRelease:
 	call	PrintChar ; else display the character and a space bar
 	movlw	' '
 	call	LCDPrintDecodedMorse
+	call	DEC_UpdateShift
 	
 WaitPress:
 	call	KeyPad_Read ; press '5' to continue input
@@ -253,6 +273,11 @@ WaitPress:
 	cpfseq	current_key, A
 	bra	$ + 6
 	goto	ExecF
+	
+	movlw	'E'
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecE
 	
 	movf	current_key, W, A
 	xorlw	'5'
@@ -278,6 +303,11 @@ OverflowWaitLoop:
 	bra	$ + 6
 	goto	ExecF
 	
+	movlw	'E' ; if 'E' is pressed branch to ExecE
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecE
+	
 	bra	OverflowWaitLoop
 	
 ExecF:
@@ -290,4 +320,122 @@ ExecF:
 GotoHomepage:
 	call	clear_LCD ; clears LCD
 	goto	HomePageStart ; go back to home page
+	
+ExecE:
+	call	KeyPad_Read
+	xorlw	0xFF
+	bz	BackSpaceFunc
+	bra	ExecE
+
+BackSpaceFunc:
+	call	LCDClearLine2Morse
+	movf	bit_length, W, A
+	bz	BackSpaceChar
+
+	bra	BackSpaceMorse
+
+BackSpaceMorse:
+	call	LCDClearLine2Morse
+	call	ClearBuffer
+	bra	BackSpaceDone
+
+BackSpaceChar:
+	movf	decoded_counter, W, A
+	bz	BackSpaceDone
+	call	DecBackSpaceUpdate
+	decf	decoded_counter, F, A
+	
+	movlw   0x80 ; display character on line 1[decoded_counter]
+	addwf   decoded_counter, W, A
+	call    LCD_Send_Byte_I
+	movlw   10
+	call    LCD_delay_x4us
+    
+	movlw	' '
+	call    LCD_Send_Byte_D
+	
+	movlw   00010000B ; shift cursor left by 1
+	call    LCD_Send_Byte_I
+	movlw   10
+	call    LCD_delay_x4us
+	
+	movf	shift_counter, W, A
+	bz	BackSpaceDone
+	
+	movlw   00011100B
+	call    LCD_Send_Byte_I
+	movlw   10
+	call    LCD_delay_x4us
+	decf    shift_counter, F, A ; decrement shift counter
+	
+BackSpaceDone:
+	clrf	current_state, A
+	bra	ResetTimer
+	
+ExecC:
+	call	KeyPad_Read
+	xorlw	0xFF
+	bz	InspectionMode
+	bra	ExecC
+	
+InspectionMode:
+	movlw	16
+	cpfsgt	decoded_counter, A
+	bra	ShiftingDone
+	
+	call	KeyPad_Read
+	movwf	current_key, A
+	
+	movf	current_key, W, A
+	xorlw	'A'
+	bz	ExecA
+	
+	movf	current_key, W, A
+	xorlw	'B'
+	bz	ExecB
+	
+	movlw	'F' ; if 'F' is pressed branch to ExecF
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecF
+	
+ExecA:
+	call	KeyPad_Read
+	xorlw	0xFF
+	bz	ShiftDisplayLeft
+	bra	ExecA
+	
+ExecB:
+	call	KeyPad_Read
+	xorlw	0xFF
+	bz	ShiftDisplayRight
+	bra	ExecB
+	
+ShiftDisplayLeft:
+	movf	shift_counter, W, A
+	bz	InspectionMode
+	
+	movlw   00011100B
+	call    LCD_Send_Byte_I
+	movlw   10
+	call    LCD_delay_x4us 
+	decf    shift_counter, F, A ; decrement shift counter
+	
+	bra	InspectionMode
+	
+ShiftDisplayRight:
+	movf	shift_counter, W, A
+	xorlw	16
+	bz	InspectionMode
+	
+	movlw   00011000B
+	call    LCD_Send_Byte_I
+	movlw   10
+	call    LCD_delay_x4us 
+	decf    shift_counter, F, A ; decrement shift counter
+	
+	bra	InspectionMode
+	
+	
+	
 	

@@ -132,25 +132,6 @@ DisplayHomepage:
     movlw 'B'
     call LCD_Send_Byte_D
     
-    movlw   250
-    call    LCD_delay_ms
-    movlw   250
-    call    LCD_delay_ms
-    movlw   250
-    call    LCD_delay_ms
-    movlw   250
-    call    LCD_delay_ms
-    movlw   250
-    call    LCD_delay_ms
-    movlw   250
-    call    LCD_delay_ms
-    movlw   250
-    call    LCD_delay_ms
-    movlw   250
-    call    LCD_delay_ms
-    
-    
-    
     
 WaitForInput:
     call    KeyPad_Read

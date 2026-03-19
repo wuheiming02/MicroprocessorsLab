@@ -53,6 +53,7 @@
 ; ============================================================
 global  UART_Out_Plain          ; transmit with "MSG: " label
 global  UART_Out_Encrypted      ; transmit with "ENC: " label
+global  UART_Out_Key            ; transmit with "KEY: " label + 8 key digits
 
 ; ============================================================
 ; EXTERNAL SYMBOLS
@@ -66,6 +67,9 @@ extrn   UART_counter            ; 1-byte access RAM counter reused
 ; From Proj_ReadNokia.s
 extrn   message_buffer          ; 32-byte buffer (plain or encrypted)
 extrn   lock_counter            ; number of valid bytes in buffer
+				
+; From Proj_Encrypt.s
+extrn   key_digits              ; 8 raw ASCII digit bytes of the encryption key
 
 ; ============================================================
 ; CONSTANTS
@@ -168,6 +172,55 @@ UART_Out_Encrypted:
         call    UART_Transmit_Message
         return
 
+; ============================================================
+; UART_Out_Key
+; ============================================================
+; Transmit the 8-digit encryption key with "KEY: " label.
+; Sends the raw ASCII digits from key_digits[0..7] exactly
+; as the user typed them (e.g. "KEY: 08130703\r\n").
+; Fixed length: label(5) + key digits(8) + CRLF(2) = 15 bytes.
+; ============================================================
+UART_Out_Key:
+ 
+        ; ---- Write label "KEY: " into myArray[0..4] ----
+        lfsr    0, myArray
+ 
+        movlw   'K'
+        movwf   POSTINC0, A
+        movlw   'E'
+        movwf   POSTINC0, A
+        movlw   'Y'
+        movwf   POSTINC0, A
+        movlw   ':'
+        movwf   POSTINC0, A
+        movlw   ' '
+        movwf   POSTINC0, A         ; FSR0 -> myArray[5]
+ 
+        ; ---- Copy key_digits[0..7] into myArray[5..12] ----
+        ; Fixed 8 bytes: no lock_counter needed
+        movlw   8
+        movwf   UART_counter, A     ; loop counter = 8
+ 
+        lfsr    1, key_digits       ; FSR1 = read pointer
+ 
+UO_KeyCopyLoop:
+        movf    POSTINC1, W, A      ; W = *FSR1, FSR1++
+        movwf   POSTINC0, A         ; *FSR0 = W, FSR0++
+        decfsz  UART_counter, F, A
+        bra     UO_KeyCopyLoop
+ 
+        ; ---- Append CR + LF ----
+        movlw   0x0D
+        movwf   POSTINC0, A
+        movlw   0x0A
+        movwf   POSTINC0, A
+ 
+        ; ---- Transmit: 5 (label) + 8 (key) + 2 (CRLF) = 15 bytes ----
+        movlw   15
+        lfsr    2, myArray
+        call    UART_Transmit_Message
+        return	
+	
 ; ============================================================
 ; UO_CopyBuffer  (private)
 ; ============================================================

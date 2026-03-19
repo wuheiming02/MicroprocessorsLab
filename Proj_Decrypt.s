@@ -66,6 +66,8 @@
 ; ============================================================
 global  Decrypt_Init        ; key entry + validation + seed; call once
 global  DecryptChar         ; decrypt decoded_char in place; call per char
+global	DEC_UpdateShift
+global	DecBackSpaceUpdate
 
 ; ============================================================
 ; EXTERNAL SYMBOLS
@@ -95,6 +97,8 @@ extrn   clear_LCD
 
 ; From Keypad module
 extrn   KeyPad_Read
+    
+extrn	HomePageStart
 
 ; ============================================================
 ; CONSTANTS
@@ -156,7 +160,13 @@ DEC_GotKey:
         ; ---- 'E' = backspace ----
         movf    enc_tmp, W, A
         xorlw   'E'
-        bz      DEC_Backspace
+        bz      DEC_Backspace 
+	
+	; ---- 'F' = homepage ----
+	movlw	'F'
+	cpfseq	enc_tmp, A
+	bra	$ + 6
+	goto	HomePageStart
 
         ; ---- Accept only '0'-'9' ----
         movf    enc_tmp, W, A
@@ -230,7 +240,7 @@ DEC_TryConfirm:
         call    DEC_ParsePair0
         movwf   enc_sub1, A
         bz      DEC_Invalid
-        movlw   27
+        movlw   37
         cpfslt  enc_sub1, A
         bra     DEC_Invalid
 
@@ -238,14 +248,14 @@ DEC_TryConfirm:
         call    DEC_ParsePair1
         movwf   enc_sub2, A
         bz      DEC_Invalid
-        movlw   27
+        movlw   37
         cpfslt  enc_sub2, A
         bra     DEC_Invalid
 
-        ; ---- enc_shift = digits 4-5, must be 01-36 ----
+        ; ---- enc_shift = digits 4-5, must be 00-36 ----
         call    DEC_ParsePair2
         movwf   enc_shift, A
-        bz      DEC_Invalid
+        ;bz      DEC_Invalid
         movlw   37
         cpfslt  enc_shift, A
         bra     DEC_Invalid
@@ -452,6 +462,27 @@ DEC_ShiftWrapDone:
 DEC_NoShiftUpdate:
         return
 
+DecBackSpaceUpdate:
+	movf	enc_step_cnt, W, A
+	bz	DecWrapEncStepCnt
+	decf	enc_step_cnt, F, A
+	
+	return
+	
+DecWrapEncStepCnt:
+	movff	enc_step, enc_step_cnt
+	decf	enc_step_cnt, F, A
+	movf	enc_run_shift, W, A
+	bz	DecWrapEncRunShift
+	decf	enc_run_shift, F, A
+	return
+
+DecWrapEncRunShift:
+	movlw	ALPHA_SIZE
+	movwf	enc_run_shift, A
+	
+	return
+	
 ; ============================================================
 ; DEC_PromptKey  (private)
 ; ============================================================

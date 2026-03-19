@@ -22,6 +22,7 @@ extrn	shift_counter
 extrn	LCDPrintDecoded
 extrn   ShiftCursorRight
 extrn   LCDPrintOverflow
+extrn	LCDClearLine2
     
 ; from HomePage
 extrn	HomePageStart
@@ -36,6 +37,7 @@ extrn	decoded_char
 extrn	UART_Setup
 extrn	UART_Out_Plain
 extrn	UART_Out_Encrypted
+extrn	UART_Out_Key
 extrn	Encrypt_Init
 extrn	Encrypt_Run
     
@@ -87,6 +89,11 @@ SetupWaitLoop:
 	bra	$ + 6
 	goto	ExecF
 	
+	movlw	'E' ; if 'E' is pressed branch to ExecE
+	cpfseq	last_key, A
+	bra	$ + 6
+	goto	ExecE
+	
 	movlw	'C' ; if 'C' is pressed branch to ExecC
 	cpfseq	last_key, A
 	bra	$ + 6
@@ -114,9 +121,10 @@ EntryCheckLow:
 	bra	SetupWaitLoop
 
 MainLoop:
-	movlw	32 ; check if there are already 32 characters in message buffer
-	cpfslt	lock_counter, A
-	bra	Overflow ; if yes branch to Overflow
+	movlw	32 ; check if there are already 32 decoded characters
+	cpfseq	lock_counter, A
+	bra	$ + 6
+	goto	Overflow ; if yes branch to Overflow
     
 	call	KeyPad_Read
 	movwf	current_key, A ; store key in current_key
@@ -129,6 +137,11 @@ MainLoop:
 	cpfseq	current_key, A
 	bra	$ + 6
 	goto	ExecF
+	
+	movlw	'E' ; if 'E' is pressed branch to ExecE
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecE
 	
 	movlw	'C' ; if 'C' is pressed branch to ExecC
 	cpfseq	current_key, A
@@ -316,6 +329,11 @@ OverflowWaitLoop:
 	bra	$ + 6
 	goto	ExecF
 	
+	movlw	'E' ; if 'E' is pressed branch to ExecE
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecE
+	
 	movlw	'C' ; if 'C' is pressed branch to ExecC
 	cpfseq	current_key, A
 	bra	$ + 6
@@ -347,6 +365,60 @@ ReadBufferChar:
 	movf    INDF0, W, A
 	return
 	
+ExecE:
+	call	KeyPad_Read
+	xorlw	0xFF
+	bz	BackSpaceFunc
+	bra	ExecE
+	
+BackSpaceFunc:
+	call	LCDClearLine2
+	movf	key_counter, W, A
+	bz	BackSpaceLock
+	
+	movlw	' '
+	call	LCD_Send_Byte_D
+	
+	movlw   00010000B ; shift cursor left by 1
+	call    LCD_Send_Byte_I
+	movlw   10
+	call    LCD_delay_x4us
+	
+	clrf	key_counter, A
+	
+	bra	BackSpaceDone
+BackSpaceLock:
+	movf	lock_counter, W, A
+	bz	BackSpaceDone
+	
+	decf	lock_counter, F, A
+	
+	movlw   00010000B ; shift cursor left by 1
+	call    LCD_Send_Byte_I
+	movlw   10
+	call    LCD_delay_x4us
+	
+	movlw	' '
+	call	LCD_Send_Byte_D
+	
+	movlw   00010000B ; shift cursor left by 1
+	call    LCD_Send_Byte_I
+	movlw   10
+	call    LCD_delay_x4us
+	
+	movf	shift_counter, W, A
+	bz	BackSpaceDone
+	
+	movlw   00011100B
+	call    LCD_Send_Byte_I
+	movlw   10
+	call    LCD_delay_x4us 
+	decf    shift_counter, F, A ; decrement shift counter
+	
+BackSpaceDone:
+	clrf	current_state, A
+	goto	SetupWaitLoop
+	
 ExecC:
 	call	KeyPad_Read ; wait till key is released
 	xorlw	0xFF
@@ -361,6 +433,7 @@ SendEncryptedMessage:
 	call	Encrypt_Init
 	call	Encrypt_Run
 	call	MorseSend
+	call	UART_Out_Key
 	call	UART_Out_Encrypted
 	bra	GotoHomepage
 	
@@ -395,6 +468,11 @@ MorseSend_CharLoop:
         addwfc  FSR0H, F, A
         movf    INDF0, W, A
         movwf   enc_tmp, A          ; morse_char = current character
+	
+	movlw	' '
+	cpfseq	enc_tmp, A
+	bra	$ + 6
+	goto	MorseSend_Space
 
         ; ---- Look up Morse pattern for this character ----
         call    MorseLookup         ; loads enc_alpha_pos=bits, enc_step_cnt=len
@@ -423,17 +501,27 @@ MorseSend_Dash:
 MorseSend_Dot:
         movlw   '.'
         call    MorseUARTByte
+	bra	MorseSend_SymbolDone
+	
+MorseSend_Space:
+	movlw	' '
+	call	MorseUARTByte
+	movlw	'/'
+	call	MorseUARTByte
+	movlw	' '
+	call	MorseUARTByte
+	bra	MorseSend_NextChar
 
 MorseSend_SymbolDone:
-        movlw   ' '                 ; space between symbols
-        call    MorseUARTByte
+;        movlw   ' '                 ; space between symbols
+;        call    MorseUARTByte
 
         decfsz  UART_counter, F, A
         bra     MorseSend_BitLoop
 
         ; ---- Send '/' separator between characters ----
-        movlw   '/'
-        call    MorseUARTByte
+;        movlw   '/'
+;        call    MorseUARTByte
         movlw   ' '
         call    MorseUARTByte
 

@@ -90,6 +90,10 @@ extrn   LCD_delay_ms
 extrn   LCD_delay_x4us
 extrn   clear_LCD
 extrn   KeyPad_Read
+    
+    
+    
+extrn	HomePageStart
 
 ; ============================================================
 ; CONSTANTS
@@ -180,6 +184,12 @@ ENC_GotKey:
         movf    enc_tmp, W, A
         xorlw   'E'
         bz      ENC_Backspace
+	
+	; ---- 'F' = homepage ----
+	movlw	'F'
+	cpfseq	enc_tmp, A
+	bra	$ + 6
+	goto	HomePageStart	
 
         ; ---- Accept only '0'-'9' ----
         ; Upper bound: reject if enc_tmp > '9'
@@ -263,7 +273,7 @@ ENC_TryConfirm:
         movwf   enc_sub1, A
         movf    enc_sub1, W, A
         bz      ENC_Invalid
-        movlw   27
+        movlw   37
         cpfslt  enc_sub1, A
         bra     ENC_Invalid
 
@@ -272,15 +282,15 @@ ENC_TryConfirm:
         movwf   enc_sub2, A
         movf    enc_sub2, W, A
         bz      ENC_Invalid
-        movlw   27
+        movlw   37
         cpfslt  enc_sub2, A
         bra     ENC_Invalid
 
         ; ---- shift = digits 4-5, must be 01-36 ----
         call    ENC_ParsePair2
         movwf   enc_shift, A
-        movf    enc_shift, W, A
-        bz      ENC_Invalid
+;        movf    enc_shift, W, A
+;        bz      ENC_Invalid
         movlw   37
         cpfslt  enc_shift, A
         bra     ENC_Invalid
