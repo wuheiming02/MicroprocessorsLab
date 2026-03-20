@@ -75,6 +75,12 @@ MorseStart:
 	
 	call	Decrypt_Init
 	
+	
+	clrf	TRISH, A
+	clrf	LATH, A
+	;movlw	0xFF
+	;movwf	LATH, A
+	
 SetupWaitLoop: 
 ; program starts when '5' is pressed to start Morse code input
 	call	KeyPad_Read
@@ -176,6 +182,9 @@ ReleaseFinished:
 	bra	DecodeChar ; decode the character in Morse code
 	
 DecodeChar:
+	movlw	0xFF
+	movwf	LATH, A
+    
 	call	DecodeLetter ; decode the character stored in bit_buffer
 	movwf	decoded_char, A ; place the decoded character in decoded_char
 	
@@ -187,6 +196,9 @@ DecodeChar:
 	
 	movf	decoded_char, W, A ; display character on LCD
 	call	PrintChar
+	
+	clrf	LATH, A
+	
 	bra	ResetTimer ; reset timer
 	
 InvalidMorse:
@@ -260,6 +272,9 @@ CheckRelease:
 	cpfsgt	timer_counter, A
 	bra	MainLoop ; if yes nothing happens, branch back to MainLoop
 	
+	movlw	0xFF
+	movwf	LATH, A
+	
 	call	DecodeLetter ; if no decode the letter
 	movwf	decoded_char, A
 	
@@ -274,6 +289,8 @@ CheckRelease:
 	movlw	' '
 	call	LCDPrintDecodedMorse
 	call	DEC_UpdateShift
+	
+	clrf	LATH, A
 	
 WaitPress:
 	call	KeyPad_Read ; press '5' to continue input
