@@ -376,6 +376,13 @@ BackSpaceFunc:
 	movf	key_counter, W, A
 	bz	BackSpaceLock
 	
+	
+	movlw	0x80
+	addwf	lock_counter, W, A
+	call    LCD_Send_Byte_I
+	movlw   10
+	call    LCD_delay_x4us
+	
 	movlw	' '
 	call	LCD_Send_Byte_D
 	
@@ -393,7 +400,8 @@ BackSpaceLock:
 	
 	decf	lock_counter, F, A
 	
-	movlw   00010000B ; shift cursor left by 1
+	movlw	0x80
+	addwf	lock_counter, W, A
 	call    LCD_Send_Byte_I
 	movlw   10
 	call    LCD_delay_x4us

@@ -130,6 +130,11 @@ KeyPressed:
 	bra	$ + 6
 	goto	ExecE
 	
+	movlw	'C'
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecC
+	
 	clrf	current_state, A
 	
 	goto	ResetTimer ; reset timer
@@ -238,6 +243,11 @@ WaitRelease:
 	bra	$ + 6
 	goto	ExecE
 	
+	movlw	'C'
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecC
+	
 	movf	current_key, W, A
 	xorlw	'5'
 	bnz	WaitRelease
@@ -279,6 +289,11 @@ WaitPress:
 	bra	$ + 6
 	goto	ExecE
 	
+	movlw	'C'
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecC
+	
 	movf	current_key, W, A
 	xorlw	'5'
 	bnz	WaitPress
@@ -307,6 +322,11 @@ OverflowWaitLoop:
 	cpfseq	current_key, A
 	bra	$ + 6
 	goto	ExecE
+	
+	movlw	'C'
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecC
 	
 	bra	OverflowWaitLoop
 	
@@ -379,12 +399,17 @@ ExecC:
 	bra	ExecC
 	
 InspectionMode:
+	call	KeyPad_Read
+	movwf	current_key, A
+	
+	movlw	'F' ; if 'F' is pressed branch to ExecF
+	cpfseq	current_key, A
+	bra	$ + 6
+	goto	ExecF
+	
 	movlw	16
 	cpfsgt	decoded_counter, A
 	bra	InspectionMode
-	
-	call	KeyPad_Read
-	movwf	current_key, A
 	
 	movf	current_key, W, A
 	xorlw	'A'
@@ -393,11 +418,6 @@ InspectionMode:
 	movf	current_key, W, A
 	xorlw	'B'
 	bz	ExecB
-	
-	movlw	'F' ; if 'F' is pressed branch to ExecF
-	cpfseq	current_key, A
-	bra	$ + 6
-	goto	ExecF
 	
 	bra	InspectionMode
 	
@@ -434,7 +454,7 @@ ShiftDisplayRight:
 	call    LCD_Send_Byte_I
 	movlw   10
 	call    LCD_delay_x4us 
-	decf    shift_counter, F, A ; decrement shift counter
+	incf    shift_counter, F, A
 	
 	bra	InspectionMode
 	
