@@ -393,6 +393,8 @@ BackSpaceDone:
 	bra	ResetTimer
 	
 ExecC:
+	call	LCDClearLine2Morse
+    
 	call	KeyPad_Read
 	xorlw	0xFF
 	bz	InspectionMode
