@@ -79,6 +79,9 @@ NokiaStart:
 	call	UART_Setup
 	call	Encrypt_Init
 	
+	clrf	TRISH, A
+	clrf	LATH, A
+	
 SetupWaitLoop:
 ; program starts when a numeric key is pressed
 	call	KeyPad_Read
@@ -439,10 +442,17 @@ SendEncryptedMessage:
 	bz	SetupWaitLoop
 	
 	call	Encrypt_Init
+	
+	movlw	0xFF
+	movwf	LATH, A
+	
 	call	Encrypt_Run
 	call	MorseSend
 	call	UART_Out_Key
 	call	UART_Out_Encrypted
+	
+	clrf	LATH, A
+	
 	bra	GotoHomepage
 	
 ExecD:
